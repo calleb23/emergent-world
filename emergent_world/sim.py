@@ -235,6 +235,8 @@ class Simulation:
             self.climate.tick()
         self.world.tick(self.climate.growth if self.climate is not None else 1.0)
         physics.tick(self)
+        physics.grow(self)
+        physics.shed(self)
         living = self.living
         occupied = np.zeros((self.world.width, self.world.height), dtype=bool)
         for a in living:
@@ -292,7 +294,17 @@ class Simulation:
         elif action == Action.RUB:
             physics.rub(self, agent)
         elif action == Action.DRINK:
-            if self.world.next_to_liquid(agent.x, agent.y):
+            held = c.item(agent.hands)
+            if held is not None and held.water and not self.world.next_to_liquid(agent.x, agent.y):
+                agent.water = min(c.max_water, agent.water + held.water)
+                agent.hands = c.item_id(held.empties_into) if held.empties_into else 0
+                self._first(agent, ("drank carried",), f"Drank from the {held.look} they were carrying")
+                self.chronicle(f"{label(agent)} carried water away from the pond and drank it",
+                               once="carried water")
+            elif self.world.next_to_liquid(agent.x, agent.y):
+                if held is not None and held.holds_water:
+                    agent.hands = c.item_id(held.holds_water)
+                    self._first(agent, ("filled", held.look), f"Dipped a {held.look} in the water; it filled")
                 if "first drink" not in agent.firsts:
                     agent.firsts.add("first drink")
                     self.log(agent, "Drank water for the first time")
@@ -313,6 +325,11 @@ class Simulation:
         kind = self.config.item(int(self.world.plants[agent.x, agent.y]))
         if kind is None:
             return
+        if kind.immovable or kind.mass > self.config.max_carry:
+            self._first(agent, ("heavy", kind.look), f"Tried to pick up a {kind.look}; it wouldn't budge")
+            return
+        if kind.prickly:
+            agent.take_damage(kind.prickly, "thorns")
         self.world.take_plant(agent.x, agent.y)
         agent.hands = self.config.items.index(kind) + 1
         self._first(agent, ("picked", kind.color), f"Picked up a {kind.look} for the first time")
@@ -325,6 +342,12 @@ class Simulation:
         if held is None:
             return
         x, y = agent.x, agent.y
+        if self.world.fire[x, y] and held.burn_hours:
+            agent.hands = 0
+            self.world.fire[x, y] += held.burn_hours
+            self._first(agent, ("stoked",), f"Fed a {held.look} to a fire; it flared up")
+            self.chronicle(f"{label(agent)} fed a fire to keep it going", once="stoked")
+            return
         if held.look == "stick" and self.world.terrain[x, y] == 0:
             agent.hands = 0
             if self.world.add_to_shelter(x, y, self.config.sticks_per_shelter):
@@ -402,6 +425,10 @@ class Simulation:
         if not carried and agent.memory.level(color) < 0.3:
             agent.memory.food_at = (agent.x, agent.y)
         agent.energy = min(c.max_energy, agent.energy + kind.energy)
+        if kind.cures and agent.sicknesses:
+            agent.sicknesses = []
+            self.log(agent, f"Ate a {look} while sick, and the sickness passed")
+            self.chronicle(f"{label(agent)} ate a {look} while sick and recovered", once=("cured", look))
         if kind.harmful:
             agent.sicknesses.append(Sickness(kind.toxin_delay, kind.toxin_hours, kind.toxin))
         self.stats.record_meal(agent, "poison" if kind.harmful else "food")
@@ -431,6 +458,11 @@ class Simulation:
             agent.take_damage(physics.BURN_DAMAGE, "fire")
             agent.memory.burned(physics.FIRE_COLOR)
             self._first(agent, ("burned",), "Stepped into fire and was burned")
+        underfoot = c.item(int(self.world.plants[agent.x, agent.y]))
+        if underfoot is not None and underfoot.prickly:
+            agent.take_damage(underfoot.prickly, "thorns")
+            agent.memory.burned(underfoot.color, 0.3)
+            self._first(agent, ("pricked", underfoot.look), f"Walked into a {underfoot.look}; it scratched")
         out_in_it = behaviour.exposed(self, agent)
         if out_in_it:
             hunger *= c.exposure_hunger

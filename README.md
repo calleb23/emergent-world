@@ -59,7 +59,21 @@ outcomes. People can strike what's underfoot with what they hold, or rub them to
 
 - **Strike**: something held at least as hard as its target can break it. Rock on rock
   chips a sharp flake; a rock cracks a nut.
+- **Recipes** (`STRIKE_RECIPES`): a flake or flint blade whittles a stick or branch
+  into a sharpened stick, strips a reed to fibre, and butchers a cug into meat; a stick
+  knocks honeycomb out of a beehive. A hard enough tool fells a tree into a log. Tools
+  aren't used up.
+- **Stings and thorns**: striking a hive stings; walking into a thorn bush scratches.
+  Both hurt, and people grow wary of what hurt them.
+- **Sparks**: flint struck on something hard (rock, tree, flint) throws sparks that can
+  light dry grass or sticks beside it.
 - **Rub**: rubbing burnable things builds heat; kept up long enough, fire.
+- **Weight**: trees, logs, hives and thorn bushes can't be picked up.
+- **Containers**: dip a clay pot in a pond and it fills; drink from it anywhere, and
+  it's an empty pot again. Clay dropped into a fire hardens into a pot.
+- **Living things**: trees drop apples and fallen branches beside them; grass seeds left
+  on open ground grow into green plants after a week; eating a blue flower ends sickness.
+- **Stoking**: dropping something burnable into a fire feeds it.
 - **Fire** burns stick piles, shelters and dry plants, spreads its heat to burnable
   neighbours, is put out by rain, leaves ash, and can be started by lightning. Food in
   a fire cooks (roasting makes the pale mushroom safe and cracks nuts). Standing in fire
@@ -120,7 +134,17 @@ world after five lifetimes.
   | nut | rich food, rare | far from water |
   | grey rock, stick | can't be eaten; agents learn to stop trying | anywhere |
   | cug | a fine meal, if you can catch one | near water |
-  | sharp flake, cracked nut, roasted mushroom, roasted cug, ash | only made by physics | - |
+  | tree | can't be eaten or carried; drops apples and branches | anywhere |
+  | apple | good food | under trees |
+  | dry grass tuft | tinder | far from water |
+  | reed, clay lump | materials (fibre, pots) | near water |
+  | bird egg | food, better cooked | near water |
+  | flint nodule | hard stone that sparks; breaks into a blade | far from water |
+  | beehive | stings; knock it for honeycomb, a rich food | far from water |
+  | thorn bush | scratches anyone who walks into it | anywhere |
+  | blue flower | cures sickness | anywhere |
+  | grass seed | grows into a green plant | anywhere |
+  | sharp flake, flint blade, sharpened stick, fibre, clay pot, pot of water, pottery shard, log, fallen branch, cracked nut, honeycomb, cug meat, cooked food, ash | only made by physics | - |
 
   **Nuts are locked in a hard shell**: crack one with something harder, or roast it.
 

@@ -46,6 +46,7 @@ class Config:
     max_energy: float = 100.0
     max_water: float = 100.0
     max_health: float = 100.0
+    max_carry: float = 5.0                # heaviest thing one person can lift
     energy_drain: float = 0.25      # per tick
     water_drain: float = 0.4        # per tick
     starvation_damage: float = 2.0  # health lost per tick at zero energy

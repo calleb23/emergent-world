@@ -5,6 +5,10 @@ never scripted outcomes (see world/items.py for the properties).
   what it breaks into (rock on rock chips a sharp flake; a hard thing cracks a nut).
 - Rub: rubbing one burnable thing on another builds heat on that spot; enough heat,
   kept up, sets it alight. Heat fades quickly when the rubbing stops.
+- Recipes: some pairings make something particular (a flake whittles a stick
+  sharp, strips a reed to fibre, butchers a cug; a stick knocks honeycomb from a
+  hive). Stinging things sting whoever strikes them. Flint struck on something
+  hard throws sparks that can light dry tinder beside it.
 - Fire: burns a tile's fuel (burnable items, stick piles, shelters), spreads its
   heat to burnable neighbours, is put out by rain, and leaves ash. Lightning in a
   storm can start one. Food left in a fire for a few hours cooks. Anyone standing
@@ -23,6 +27,8 @@ LIGHTNING_CHANCE = 0.03   # per hour of storm
 STICK_FUEL = 6            # hours of fire per stick in a pile
 SHELTER_FUEL = 30
 BURN_DAMAGE = 8.0         # health lost per hour standing in fire
+SPARK_HEAT = 3.0          # heat flint sparks throw onto each burnable neighbour
+SPARK_HARDNESS = 6        # flint only sparks against something this hard
 
 NEIGHBOURS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
@@ -31,6 +37,7 @@ def setup(world):
     world.fire = np.zeros((world.width, world.height), dtype=np.int16)   # hours of fuel left
     world.heat = np.zeros((world.width, world.height), dtype=np.float32)
     world.cooking = np.zeros((world.width, world.height), dtype=np.int16)
+    world.growing = np.zeros((world.width, world.height), dtype=np.int16)   # hours a seed has lain
 
 
 def burnable(world, config, x, y) -> float:
@@ -106,6 +113,38 @@ def tick(sim):
                 world.plants[x, y] = config.item_id("ash")
 
 
+def grow(sim) -> None:
+    """Seeds lying on open grass take root, and after a while become what they grow into."""
+    world, config = sim.world, sim.config
+    seeds = np.zeros(world.plants.shape, dtype=bool)
+    for item_id, kind in enumerate(config.items, start=1):
+        if kind.grows_into:
+            here = world.plants == item_id
+            seeds |= here
+            ready = here & (world.growing >= kind.grow_days * 24 - 1)
+            if ready.any():
+                world.plants[ready] = config.item_id(kind.grows_into)
+                world.growing[ready] = 0
+                seeds &= ~ready
+    world.growing[seeds & (world.terrain == 0)] += 1
+    world.growing[~seeds] = 0
+
+
+def shed(sim) -> None:
+    """Things that drop things (trees: apples, branches) shed them onto open ground beside them."""
+    world, config, rng = sim.world, sim.config, sim.rng
+    for item_id, kind in enumerate(config.items, start=1):
+        if not kind.drops:
+            continue
+        spots = np.argwhere(world.plants == item_id)
+        for look, chance in kind.drops:
+            for x, y in spots[rng.random(len(spots)) < chance]:
+                dx, dy = NEIGHBOURS[int(rng.integers(0, 4))]
+                nx, ny = int(x) + dx, int(y) + dy
+                if world.is_walkable(nx, ny) and world.plants[nx, ny] == 0 and not world.fire[nx, ny]:
+                    world.plants[nx, ny] = config.item_id(look)
+
+
 def fire_near(world, x, y, reach: int = 1) -> bool:
     x0, x1 = max(0, x - reach), min(world.width, x + reach + 1)
     y0, y1 = max(0, y - reach), min(world.height, y + reach + 1)
@@ -114,19 +153,42 @@ def fire_near(world, x, y, reach: int = 1) -> bool:
 
 def strike(sim, agent) -> None:
     """Hit what's underfoot with what's held."""
+    from emergent_world.world.items import STRIKE_RECIPES
     world, config = sim.world, sim.config
     held = config.item(agent.hands)
     target = config.item(int(world.plants[agent.x, agent.y]))
-    if held is None or target is None or not target.breaks_into:
+    if held is None or target is None:
         return
-    if held.hardness < target.hardness or sim.rng.random() > 0.5:
+    if target.stings:
+        agent.take_damage(target.stings, "stings")
+        agent.memory.burned(target.color, 0.5)
+        sim._first(agent, ("stung", target.look), f"Struck a {target.look} and was stung")
+    if held.sparks and target.hardness >= SPARK_HARDNESS:
+        sparks(sim, agent.x, agent.y)
+        sim._first(agent, ("sparks",), f"Struck a {held.look} on a {target.look}; sparks flew")
+    result = STRIKE_RECIPES.get((held.look, target.look)) or target.breaks_into
+    if not result or held.hardness < target.hardness or sim.rng.random() > 0.5:
         return
-    result = config.item_id(target.breaks_into)
-    world.plants[agent.x, agent.y] = result
-    sim._first(agent, ("broke", target.look),
-               f"Struck a {target.look} with a {held.look}, and got a {target.breaks_into}")
+    world.plants[agent.x, agent.y] = config.item_id(result)
+    sim._first(agent, ("broke", target.look, result),
+               f"Struck a {target.look} with a {held.look}, and got a {result}")
     sim.chronicle(f"{sim_label(agent)} struck a {target.look} with a {held.look} and made the first "
-                  f"{target.breaks_into}", once=("made", target.breaks_into))
+                  f"{result}", once=("made", result))
+
+
+def sparks(sim, x, y) -> None:
+    """Sparks land on the tiles around (x, y): dry tinder can catch."""
+    world, config = sim.world, sim.config
+    if wet(sim):
+        return
+    for dx, dy in NEIGHBOURS:
+        nx, ny = x + dx, y + dy
+        if world.in_bounds(nx, ny) and not world.fire[nx, ny]:
+            needed = burnable(world, config, nx, ny)
+            if needed:
+                world.heat[nx, ny] += SPARK_HEAT
+                if world.heat[nx, ny] >= needed and ignite(sim, nx, ny):
+                    sim.chronicle("Sparks from struck flint caught, and a fire started", once="spark fire")
 
 
 def rub(sim, agent) -> None:

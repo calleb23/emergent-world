@@ -38,6 +38,17 @@ class ItemKind:
     ignites_at: float = 0.0      # heat (from rubbing or nearby fire) needed to catch fire
     cooks_into: str = ""         # the look of what it becomes after a few hours in a fire
     spawns: bool = True          # False: only ever made by physics (flakes, cooked food, ash)
+    immovable: bool = False      # rooted or too heavy to pick up (trees, bushes, hives, logs)
+    prickly: float = 0.0         # damage per hour to anyone standing on or handling it
+    stings: float = 0.0          # damage to anyone who strikes it
+    cures: bool = False          # eating it ends sickness
+    sparks: bool = False         # struck on something very hard, it throws sparks
+    holds_water: str = ""        # a container: the look it becomes when filled at water
+    water: float = 0.0           # drinking it from the hands restores this much water
+    empties_into: str = ""       # what a filled container becomes once drunk from
+    drops: tuple = ()            # (look, chance per hour): what it sheds onto open ground beside it
+    grows_into: str = ""         # dropped on open grass, it grows into this...
+    grow_days: int = 0           # ...after this many days
 
     @property
     def harmful(self) -> bool:
@@ -93,4 +104,83 @@ DEFAULT_ITEMS = (
              wilt_chance=0.004, group="cooked"),
     ItemKind("ash", (70, 68, 66), edible=False, spawns=False, regrows=False,
              wilt_chance=0.01, group="debris"),
+
+    # --- Trees and wood -------------------------------------------------------
+    ItemKind("tree", (34, 110, 50), edible=False, spawn_weight=1.2, regrows=False, wilt_chance=0.0,
+             group="tree", immovable=True, hardness=6, mass=50, burn_hours=40, ignites_at=9,
+             breaks_into="log", drops=(("apple", 0.002), ("fallen branch", 0.002))),
+    ItemKind("apple", (220, 60, 45), energy=25, spawns=False, regrows=False, wilt_chance=0.003,
+             group="fruit"),
+    ItemKind("fallen branch", (125, 95, 60), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0005, group="wood", hardness=4, mass=2, burn_hours=8, ignites_at=5),
+    ItemKind("log", (95, 65, 40), edible=False, spawns=False, regrows=False, wilt_chance=0.0,
+             group="wood", immovable=True, hardness=6, mass=8, burn_hours=30, ignites_at=7),
+    ItemKind("dry grass tuft", (200, 185, 110), edible=False, spawn_weight=1.2, habitat="dry",
+             wilt_chance=0.003, group="plant", hardness=0.5, burn_hours=1, ignites_at=2),
+
+    # --- By the water ---------------------------------------------------------
+    ItemKind("reed", (110, 150, 80), edible=False, spawn_weight=1.5, habitat="near_water",
+             wilt_chance=0.002, group="plant", hardness=1, burn_hours=1, ignites_at=4),
+    ItemKind("fibre", (200, 190, 150), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.001, group="material", burn_hours=1, ignites_at=3),
+    ItemKind("clay lump", (165, 110, 85), edible=False, spawn_weight=0.8, habitat="near_water",
+             regrows=False, wilt_chance=0.0, group="material", hardness=2, mass=2,
+             cooks_into="clay pot"),
+    ItemKind("clay pot", (190, 120, 80), edible=False, spawns=False, regrows=False, wilt_chance=0.0,
+             group="tool", hardness=3, mass=1.5, breaks_into="pottery shard",
+             holds_water="pot of water"),
+    ItemKind("pot of water", (120, 140, 190), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0, group="tool", hardness=3, mass=3, water=40, empties_into="clay pot"),
+    ItemKind("pottery shard", (175, 105, 70), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0, group="tool", hardness=5, mass=0.3),
+    ItemKind("bird egg", (235, 230, 215), energy=20, spawn_weight=0.5, habitat="near_water",
+             wilt_chance=0.003, group="egg", hardness=0.5, breaks_into="", cooks_into="cooked egg"),
+    ItemKind("cooked egg", (240, 210, 120), energy=30, spawns=False, regrows=False,
+             wilt_chance=0.004, group="cooked"),
+
+    # --- Dry ground -----------------------------------------------------------
+    ItemKind("flint nodule", (70, 75, 95), edible=False, spawn_weight=0.6, habitat="dry",
+             regrows=False, wilt_chance=0.0, group="stone", hardness=8, mass=1.5,
+             breaks_into="flint blade", sparks=True),
+    ItemKind("flint blade", (40, 45, 70), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0, group="tool", hardness=9, mass=0.5),
+    ItemKind("beehive", (205, 160, 40), edible=False, spawn_weight=0.3, habitat="dry", regrows=False,
+             wilt_chance=0.0, group="hive", immovable=True, hardness=2, stings=12.0,
+             burn_hours=4, ignites_at=4),
+    ItemKind("honeycomb", (245, 190, 50), energy=55, spawns=False, regrows=False,
+             wilt_chance=0.001, group="sweet"),
+
+    # --- Hazards, medicine and seeds -------------------------------------------
+    ItemKind("thorn bush", (80, 105, 60), edible=False, spawn_weight=0.8, regrows=False,
+             wilt_chance=0.0, group="plant", immovable=True, prickly=3.0, hardness=3,
+             burn_hours=4, ignites_at=4),
+    ItemKind("blue flower", (80, 110, 220), energy=5, spawn_weight=0.4, wilt_chance=0.003,
+             group="plant", cures=True),
+    ItemKind("grass seed", (180, 175, 95), edible=False, spawn_weight=0.8, wilt_chance=0.002,
+             group="seed", grows_into="green plant", grow_days=7),
+
+    # --- Made by hand ---------------------------------------------------------
+    ItemKind("sharpened stick", (150, 115, 70), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0003, group="tool", hardness=5, mass=1, burn_hours=4, ignites_at=5),
+    ItemKind("cug meat", (200, 90, 90), energy=30, spawns=False, regrows=False,
+             wilt_chance=0.006, group="meat", cooks_into="roasted cug"),
 )
+
+# What striking one thing with another makes, beyond plain breaking: (held, target) -> result.
+# A held thing must still be at least as hard as its target. Tools aren't used up.
+STRIKE_RECIPES = {
+    ("sharp flake", "stick"): "sharpened stick",
+    ("flint blade", "stick"): "sharpened stick",
+    ("pottery shard", "stick"): "sharpened stick",
+    ("sharp flake", "fallen branch"): "sharpened stick",
+    ("flint blade", "fallen branch"): "sharpened stick",
+    ("sharp flake", "reed"): "fibre",
+    ("flint blade", "reed"): "fibre",
+    ("pottery shard", "reed"): "fibre",
+    ("sharp flake", "cug"): "cug meat",
+    ("flint blade", "cug"): "cug meat",
+    ("sharpened stick", "cug"): "cug meat",
+    ("stick", "beehive"): "honeycomb",
+    ("fallen branch", "beehive"): "honeycomb",
+    ("sharpened stick", "beehive"): "honeycomb",
+}
