@@ -18,7 +18,10 @@ Needs Python 3.10 or newer.
 ## Run
 
 ```
-python main.py                  # watch it live (SPACE pause, UP/DOWN speed, ESC quit)
+python main.py                  # watch it live, following one agent (click another to switch)
+python main.py --headless --story   # print the followed agent's life story as it happens
+python main.py --people 6       # how many founders start the world (default 12, cap 40)
+python main.py --children 2     # roughly how many children per lifetime (default 3)
 python main.py --years 5        # average lifespan of 5 years (default 2)
 python main.py --run-years 30   # how long to simulate (default 10 years)
 python main.py --seed 7         # a different world; the same seed always replays the same run
@@ -108,6 +111,26 @@ main.py
 tests/
 ```
 
+## Following one life
+
+The world is deliberately small: 12 founders, about three children per lifetime, at
+most 40 people. Every agent keeps a life story, written by an observer (so a plant is a
+"yellow-green plant", never "poison"): first meals and drinks, getting sick and what they
+became wary of, running out of water, children, seeing relatives die, and their own death.
+The viewer follows one agent: their needs, what they're wary of, and their recent life.
+When they die, it moves on to their oldest living child. A sample from `--story`:
+
+```
+year 1, day 111    #10   Ate a yellow-green plant despite a bad feeling about it
+year 1, day 112    #10   Fell sick; now wary of yellow-green plant
+year 1, day 207    #10   Had a child, #53
+year 1, day 209    #10   Died of poison, aged 557 days
+year 1, day 209    #53   Now following #53 (child of #10), aged 2 days
+```
+
+In small worlds (seeds 0–2, 6 years), agents live 140–435 days on average and some reach
+old age; poison is now the leading cause of death.
+
 ## Food memory (step 5, in progress)
 
 `agents/memory.py`. Built-in wiring, like real taste aversion: what's learned is *which*
@@ -137,10 +160,8 @@ isn't complete.
 
 ## Next steps
 
-- **Lives are long on paper only.** With 1-year lifespans, agents still die at about 66
-  days on average, mostly of thirst and hunger from crowding: each agent can have about
-  eight children in a lifetime, so the population fills the world and most die young.
-  Long-lived species need low fertility (two or three children per lifetime) so deaths
-  from scarcity are rarer.
-- Make poison avoidance more complete, and let the memory also steer agents away from
-  foods they're averse to rather than only stopping the final bite.
+- **Make poison avoidance more complete.** Life stories show agents eating the plant
+  that made them sick again and again. The memory only stops the final bite; it should
+  also steer agents away from foods they're wary of.
+- Prehistory still uses fast breeding (about eight children per five-week life); the
+  founders haven't evolved under the small world's slower breeding.

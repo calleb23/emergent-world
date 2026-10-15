@@ -88,3 +88,30 @@ def test_aversion_holds_back_eating():
     assert penalty[0] == child.aversion_gain
     sim.world.plants[child.x, child.y] = FOOD
     assert BrainPolicy.eat_penalty([child], sim.world, sim.config)[0] == 0
+
+
+def test_life_story_records_birth_sickness_and_witnessed_death():
+    sim, parent, child, _ = _family_sim()
+    assert child.events[-1][1] == f"Born to #{parent.id}"
+    assert any("Had a child" in text for _, text in parent.events)
+    sim.world.plants[parent.x, parent.y] = POISON
+    sim._act(parent, Action.EAT)
+    assert parent.events[-1][1] == "Ate a yellow-green plant for the first time"
+    parent.health = 1
+    while parent.alive:
+        sim._update_body(parent)
+    assert parent.events[-1][1].startswith("Died of poison")
+    assert child.events[-1][1] == (f"Saw their parent #{parent.id} die (poison); "
+                                   "now wary of yellow-green plant")
+
+
+def test_following_passes_to_a_child_on_death():
+    sim, parent, child, sibling = _family_sim()
+    told = []
+    sim.on_event = lambda agent, tick, text: told.append((agent.id, text))
+    sim.follow(parent)
+    child.age, sibling.age = 50, 10
+    sim._kill(parent, "old_age")
+    assert sim.followed_id == child.id   # the oldest living child
+    assert told[0] == (parent.id, f"Died of old age, aged {parent.age // 24} days")
+    assert told[-1][0] == child.id and "child of" in told[-1][1]

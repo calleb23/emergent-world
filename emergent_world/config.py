@@ -41,6 +41,9 @@ class Config:
     # so the poison plant only *looks* slightly different.
     food_color: tuple = (60, 170, 70)
     poison_color: tuple = (90, 170, 60)
+    # How an observer describes each look in life stories (never "food" or "poison").
+    food_look: str = "green plant"
+    poison_look: str = "yellow-green plant"
 
     # Agents
     initial_agents: int = 50
@@ -98,6 +101,7 @@ class Config:
     # Founders: a population file from `python -m emergent_world.prehistory`.
     # When set, the world starts with these brains (and tops up from them).
     founders_path: str = ""
+    founder_count: int = 0          # how many founders enter the world (0 = all of them)
 
     # Bootstrapping: early random brains die fast, so top the population up
     # until reproduction can sustain it. Most new agents are mutated copies

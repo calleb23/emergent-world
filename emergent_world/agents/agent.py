@@ -50,6 +50,9 @@ class Agent:
     offspring: list = field(default_factory=list)  # ids of this agent's children
     memory: FoodMemory = field(default_factory=FoodMemory)
     aversion_gain: float = 0.0  # gene: how strongly bad food memories hold back eating
+    events: list = field(default_factory=list)   # (tick, text): this agent's life story
+    firsts: set = field(default_factory=set)  # first-time experiences already logged
+    out_of: set = field(default_factory=set)     # needs currently at zero ("water", "food")
     children: int = 0
     reproduce_cooldown: int = 0
     age: int = 0

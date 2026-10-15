@@ -39,10 +39,19 @@ class Simulation:
         # the easy garden phase don't keep seeding a harder world.
         self.recent_deaths: deque = deque(maxlen=self.config.hall_of_fame_window)
         self._next_id = 0
+        # Life stories are written for every agent; on_event, if set, is called
+        # for the followed agent's events (the viewer and --story use it).
+        self.followed_id: int | None = None
+        self.on_event = None
         if self.founders:
-            # Every founder enters the world, at mixed ages so they don't all
-            # grow old and die in the same week.
-            for brain in self.founders:
+            # Founders enter at mixed ages so they don't all grow old and die in
+            # the same week. founder_count picks a few at random instead of all.
+            chosen = self.founders
+            count = self.config.founder_count
+            if 0 < count < len(self.founders):
+                picks = self.rng.choice(len(self.founders), size=count, replace=False)
+                chosen = [self.founders[int(i)] for i in picks]
+            for brain in chosen:
                 agent = self.spawn_agent(brain=brain)
                 agent.age = int(self.rng.integers(0, agent.lifespan // 2))
         else:
@@ -87,7 +96,48 @@ class Simulation:
             parent.offspring.append(agent.id)
             parent.kin.add(agent.id)
             agent.kin.add(parent.id)
+            self.log(agent, f"Born to #{parent.id}")
+            self.log(parent, f"Had a child, #{agent.id}")
+        else:
+            self.log(agent, "Arrived in the world")
         return agent
+
+    # --- Life stories -------------------------------------------------------
+
+    def log(self, agent: Agent, text: str):
+        agent.events.append((self.tick_count, text))
+        del agent.events[:-200]  # keep the most recent 200
+        if self.on_event is not None and agent.id == self.followed_id:
+            self.on_event(agent, self.tick_count, text)
+
+    def look_name(self, color) -> str:
+        c = self.config
+        return {c.food_color: c.food_look, c.poison_color: c.poison_look}.get(color, "something")
+
+    def relation(self, agent: Agent, other: Agent) -> str:
+        """What `other` is to `agent`: parent, child or sibling."""
+        if other.id == agent.parent_id:
+            return "parent"
+        if other.parent_id == agent.id:
+            return "child"
+        return "sibling"
+
+    def follow(self, agent: Agent | None):
+        self.followed_id = agent.id if agent is not None else None
+
+    def _pick_next_followed(self, dead: Agent):
+        """When the followed agent dies, carry on with family if possible."""
+        family = [self.by_id[i] for i in dead.offspring if i in self.by_id and self.by_id[i].alive]
+        family = family or [self.by_id[i] for i in dead.kin if i in self.by_id and self.by_id[i].alive]
+        candidates = family or [a for a in self.agents if a.alive]
+        self.follow(max(candidates, key=lambda a: a.age) if candidates else None)
+        nxt = self.by_id.get(self.followed_id) if self.followed_id is not None else None
+        if nxt is not None and self.on_event is not None:
+            self.on_event(nxt, self.tick_count,
+                          f"Now following #{nxt.id} ("
+                          + (f"{self.relation(dead, nxt)} of #{dead.id}" if nxt.id in dead.kin
+                             else f"no relation to #{dead.id}")
+                          + f"), aged {nxt.age // 24} days")
 
     def _inherit_gain(self, parent: Agent | None) -> float:
         c = self.config
@@ -151,6 +201,12 @@ class Simulation:
             plant = self.world.take_plant(agent.x, agent.y)
             color = self.plant_color(plant)
             if color is not None:
+                look = self.look_name(color)
+                if color not in agent.firsts:
+                    agent.firsts.add(color)
+                    self.log(agent, f"Ate a {look} for the first time")
+                elif agent.memory.level(color) > 0.5:
+                    self.log(agent, f"Ate a {look} despite a bad feeling about it")
                 self.stats.record_meal_by_learning(agent, plant == POISON)
                 agent.memory.record_meal(self.tick_count, color)
                 for kin in self.kin_watching(agent):
@@ -166,6 +222,11 @@ class Simulation:
                 self.stats.record_meal(agent, "poison")
         elif action == Action.DRINK:
             if self.world.next_to_liquid(agent.x, agent.y):
+                if "first drink" not in agent.firsts:
+                    agent.firsts.add("first drink")
+                    self.log(agent, "Drank water for the first time")
+                if "water" in agent.out_of:
+                    self.log(agent, "Found water just in time")
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
 
     @property
@@ -184,6 +245,13 @@ class Simulation:
         agent.energy = max(0.0, agent.energy - c.energy_drain * self.difficulty)
         agent.water = max(0.0, agent.water - c.water_drain * self.difficulty)
 
+        for need, level, text in (("food", agent.energy, "Starving: ran out of energy"),
+                                  ("water", agent.water, "Parched: ran out of water")):
+            if level == 0 and need not in agent.out_of:
+                agent.out_of.add(need)
+                self.log(agent, text)
+            elif level > 0:
+                agent.out_of.discard(need)
         if agent.energy == 0:
             agent.take_damage(c.starvation_damage, "starvation")
         if agent.water == 0:
@@ -195,7 +263,12 @@ class Simulation:
             else:
                 if not sickness.felt:
                     sickness.felt = True
-                    agent.memory.got_sick(self.tick_count, c.aversion_window, c.sickness_aversion)
+                    blamed = agent.memory.got_sick(self.tick_count, c.aversion_window, c.sickness_aversion)
+                    if blamed:
+                        looks = " and ".join(sorted(self.look_name(b) for b in blamed))
+                        self.log(agent, f"Fell sick; now wary of {looks}")
+                    else:
+                        self.log(agent, "Fell sick again")
                 agent.take_damage(sickness.damage, "poison")
                 sickness.duration -= 1
         agent.sicknesses = [s for s in agent.sicknesses if s.duration > 0]
@@ -259,12 +332,19 @@ class Simulation:
     def _kill(self, agent: Agent, cause: str):
         agent.alive = False
         agent.cause_of_death = cause
-        if cause == "poison":
-            for kin in self.kin_watching(agent):
-                kin.memory.saw_kin_die_of_poison(self.tick_count, agent.id,
-                                                 self.config.aversion_window,
-                                                 self.config.witness_aversion)
+        self.log(agent, f"Died of {cause.replace('_', ' ')}, aged {agent.age // 24} days")
+        for kin in self.kin_watching(agent):
+            text = f"Saw their {self.relation(kin, agent)} #{agent.id} die ({cause.replace('_', ' ')})"
+            if cause == "poison":
+                blamed = kin.memory.saw_kin_die_of_poison(self.tick_count, agent.id,
+                                                          self.config.aversion_window,
+                                                          self.config.witness_aversion)
                 self.stats.witnessed_deaths += 1
+                if blamed:
+                    text += "; now wary of " + " and ".join(sorted(self.look_name(b) for b in blamed))
+            self.log(kin, text)
+        if agent.id == self.followed_id:
+            self._pick_next_followed(agent)
         self.stats.record_death(agent, self.tick_count)
         if agent.brain is not None:
             fitness = agent.age + self.config.child_fitness * agent.children

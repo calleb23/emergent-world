@@ -36,14 +36,15 @@ class FoodMemory:
     def record_meal(self, tick: int, color):
         self.meals.append([tick, color])
 
-    def got_sick(self, tick: int, window: int, strength: float):
-        """Sickness started: blame what was eaten recently."""
+    def got_sick(self, tick: int, window: int, strength: float) -> set:
+        """Sickness started: blame what was eaten recently. Returns what got blamed."""
         blamed = [color for t, color in self.meals if tick - t <= window]
         for color in set(blamed):
             self.aversion[color] = min(1.0, self.level(color) + strength)
         self.meals = [m for m in self.meals if tick - m[0] > window]
         if blamed:
             self.learned_from.add(GOT_SICK)
+        return set(blamed)
 
     def settle_meals(self, tick: int, window: int, safety: float):
         """Meals that caused no sickness within the window count as safe."""
@@ -55,13 +56,14 @@ class FoodMemory:
     def saw_kin_eat(self, tick: int, eater_id: int, color):
         self.seen_kin_meals.append((tick, eater_id, color))
 
-    def saw_kin_die_of_poison(self, tick: int, eater_id: int, window: int, strength: float):
+    def saw_kin_die_of_poison(self, tick: int, eater_id: int, window: int, strength: float) -> set:
         blamed = {color for t, who, color in self.seen_kin_meals
                   if who == eater_id and tick - t <= window}
         for color in blamed:
             self.aversion[color] = min(1.0, self.level(color) + strength)
         if blamed:
             self.learned_from.add(WITNESSED)
+        return blamed
 
     def forget(self, tick: int, window: int, fade: float):
         """Called once a day: aversion fades, old observations are dropped."""
