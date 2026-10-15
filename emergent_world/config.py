@@ -133,3 +133,15 @@ class Config:
         """Set lifespans to average_years, give or take `spread` (0.2 = 20%)."""
         self.lifespan = (years(average_years * (1 - spread)), years(average_years * (1 + spread)))
         return self
+
+    @classmethod
+    def small_world(cls, people: int = 12, max_people: int = 40, children: float = 3.0,
+                    years: float = 2.0) -> "Config":
+        """The default world for following individual lives: a few founders, long
+        lives, about `children` children per lifetime, and top-ups only to
+        prevent extinction."""
+        config = cls(garden_ticks=0, founder_count=people, initial_agents=people,
+                     max_population=max_people, min_population=2).with_lifespan_years(years)
+        # Children are spaced so a full life fits about `children` of them after adulthood.
+        config.cooldown_fraction = (1 - config.maturity_fraction) / max(children, 0.1)
+        return config

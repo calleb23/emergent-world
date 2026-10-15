@@ -37,11 +37,7 @@ def main():
                         help="headless: print a progress line every N ticks (default: every 30 days)")
     args = parser.parse_args()
 
-    # min_population=2: top-ups only step in to prevent extinction, not to fill the world.
-    config = Config(garden_ticks=0, founder_count=args.people, initial_agents=args.people,
-                    max_population=args.max_people, min_population=2).with_lifespan_years(args.years)
-    # Children are spaced so a full life fits about --children of them after adulthood.
-    config.cooldown_fraction = (1 - config.maturity_fraction) / max(args.children, 0.1)
+    config = Config.small_world(args.people, args.max_people, args.children, args.years)
     if args.random:
         config.policy = "random"
     elif not args.blank and Path(args.founders).exists():

@@ -20,6 +20,7 @@ Needs Python 3.10 or newer.
 ```
 python main.py                  # watch it live, following one agent (click another to switch)
 python main.py --headless --story   # print the followed agent's life story as it happens
+python -m emergent_world.replay     # record 3 years into replay.html: open it in any browser
 python main.py --people 6       # how many founders start the world (default 12, cap 40)
 python main.py --children 2     # roughly how many children per lifetime (default 3)
 python main.py --years 5        # average lifespan of 5 years (default 2)
