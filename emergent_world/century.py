@@ -75,6 +75,9 @@ def run(years: int, seed: int, founders: str, replay_years: float, out_dir: Path
         if not sim.living:
             print("Everyone has died.")
             break
+        if year % 10 == 0:
+            from emergent_world import checkpoint
+            checkpoint.save(sim, out_dir / "century.ckpt", note=f"year {year}")
 
     totals = {
         "gifts": count_events(everyone.values(), "Gave a"),

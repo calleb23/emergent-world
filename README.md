@@ -184,6 +184,11 @@ metric for both batches with a 95% bootstrap interval for the difference. Seeds
 come from NumPy's `SeedSequence`, and worlds are identical whatever the worker count
 or hash seed. Results worth keeping go in `docs/experiments/`.
 
+**Checkpoints** (`emergent_world/checkpoint.py`) save a whole world and resume it
+exactly. `run --save-end` checkpoints each world at the end, and `run --resume <batch
+folder> --set ...` forks those same worlds under new rules (say, turning a feature off
+in year 2). `century.py` saves `century.ckpt` every ten years.
+
 ## Time
 
 **1 tick = 1 hour.** Body needs are set on that clock: with nothing to drink an agent dies

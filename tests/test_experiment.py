@@ -86,3 +86,31 @@ def test_comparison_flags_a_real_shift_and_not_noise():
     assert not experiment.compare(base, base, ["alive_mean"])[0]["clear"]
     md = experiment.table_markdown(experiment.compare(base, same, ["alive_mean"]))
     assert "alive_mean" in md
+
+
+def test_checkpoint_resumes_exactly(tmp_path):
+    from emergent_world import checkpoint
+    straight = Simulation(experiment.make_config({}), seed=4)
+    for _ in range(72):
+        straight.tick()
+    paused = Simulation(experiment.make_config({}), seed=4)
+    for _ in range(36):
+        paused.tick()
+    path = checkpoint.save(paused, tmp_path / "w.ckpt")
+    assert checkpoint.header(path)["tick"] == 36
+    resumed = checkpoint.load(path)
+    for _ in range(36):
+        resumed.tick()
+    assert (resumed.world.plants == straight.world.plants).all()
+    assert [(a.id, a.x, a.y, round(a.health, 6)) for a in resumed.agents] == \
+           [(a.id, a.x, a.y, round(a.health, 6)) for a in straight.agents]
+    assert resumed.history == straight.history
+    assert path.stat().st_size < 20e6
+
+
+def test_a_batch_can_fork_from_saved_worlds(tmp_path):
+    first = experiment.run_batch("a", 2, 3 / 365, {}, workers=1, out_root=tmp_path, save_end=True)
+    fork = experiment.run_batch("b", 2, 2 / 365, {"imitation": False}, workers=1, out_root=tmp_path,
+                                resume_from=first)
+    rows = experiment.load_summary(fork)
+    assert all(r["days"] == 5 for r in rows)

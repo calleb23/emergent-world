@@ -83,9 +83,14 @@ def seeds_for(base: int, count: int) -> list[int]:
 
 def run_one(job: dict) -> dict:
     """One world, start to finish. Returns its summary; writes its daily rows if asked."""
+    from emergent_world import checkpoint
     from emergent_world.sim import Simulation
-    config = make_config(job["overrides"], job.get("founders", "founders.npz"))
-    sim = Simulation(config, seed=job["seed"])
+    if job.get("resume"):
+        sim = checkpoint.load(job["resume"])
+        for key, value in job["overrides"].items():   # an experiment can change the rules mid-world
+            setattr(sim.config, key, value)
+    else:
+        sim = Simulation(make_config(job["overrides"], job.get("founders", "founders.npz")), seed=job["seed"])
     recorder = Recorder(sim)
     started = time.time()
     for _ in range(int(job["ticks"])):
@@ -97,6 +102,8 @@ def run_one(job: dict) -> dict:
     summary["seed"] = job["seed"]
     summary["seconds"] = round(time.time() - started, 1)
     out = job.get("out")
+    if out and job.get("save_end"):
+        checkpoint.save(sim, Path(out) / f"seed_{job['index']}.ckpt", note="end of run")
     if out:
         with open(Path(out) / f"seed_{job['index']}.jsonl", "w") as f:
             for row in recorder.rows:
@@ -114,7 +121,11 @@ def git_state() -> dict:
 
 
 def run_batch(name: str, seeds: int, years: float, overrides: dict, workers: int = 4,
-              base_seed: int = 0, out_root: Path | None = None, founders: str = "founders.npz") -> Path:
+              base_seed: int = 0, out_root: Path | None = None, founders: str = "founders.npz",
+              save_end: bool = False, resume_from: Path | None = None) -> Path:
+    """Run `seeds` worlds. With `resume_from` (an earlier batch's folder, saved with
+    save_end), each world carries on from where that batch's world of the same index
+    ended, under this batch's overrides: a fork of the same worlds."""
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out = (out_root or ROOT / "runs") / name / stamp
     out.mkdir(parents=True, exist_ok=True)
@@ -127,8 +138,14 @@ def run_batch(name: str, seeds: int, years: float, overrides: dict, workers: int
         "config": {k: v for k, v in dataclasses.asdict(config).items() if k != "items"},
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))
+    if resume_from is not None:
+        manifest["resumed_from"] = str(resume_from)
+        seed_list = json.loads((Path(resume_from) / "manifest.json").read_text())["seeds"][:seeds]
+        manifest["seeds"] = seed_list
     jobs = [{"index": i, "seed": s, "ticks": years * TICKS_PER_YEAR, "overrides": overrides,
-             "out": str(out), "founders": founders} for i, s in enumerate(seed_list)]
+             "out": str(out), "founders": founders, "save_end": save_end,
+             "resume": str(Path(resume_from) / f"seed_{i}.ckpt") if resume_from else None}
+            for i, s in enumerate(seed_list)]
     started = time.time()
     if workers <= 1:
         results = [run_one(j) for j in jobs]
@@ -228,6 +245,8 @@ def main(argv=None):
     r.add_argument("--workers", type=int, default=4)
     r.add_argument("--base-seed", type=int, default=0)
     r.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
+    r.add_argument("--save-end", action="store_true", help="checkpoint every world at the end")
+    r.add_argument("--resume", help="carry on the worlds saved by an earlier batch (its folder)")
     c = sub.add_parser("compare", help="compare two batches")
     c.add_argument("a")
     c.add_argument("b")
@@ -236,7 +255,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "run":
-        out = run_batch(args.name, args.seeds, args.years, parse_overrides(args.set), args.workers, args.base_seed)
+        out = run_batch(args.name, args.seeds, args.years, parse_overrides(args.set), args.workers,
+                        args.base_seed, save_end=args.save_end,
+                        resume_from=Path(args.resume) if args.resume else None)
         print(f"Wrote {out}")
         print(batch_markdown(load_summary(out)))
     elif args.command == "compare":
