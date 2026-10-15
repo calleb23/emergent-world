@@ -111,6 +111,7 @@ class Config:
     lonely_weight: float = 0.2
     loneliness_rate: float = 0.006  # per hour alone, for an average temperament
     lonely_pull: float = 1.0        # lonely people are drawn toward people they can see
+    hunger_urge: float = 5.0        # urge to bite what's underfoot, at its strongest when starving (0 = off)
     hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
     call_carries_fear: bool = True  # a cry's tone gives away the caller's fear
     harm_aversion: float = 2.5      # innate reluctance to hit or rob, stronger toward the loved
@@ -170,6 +171,7 @@ class Config:
     aversion_fade: float = 0.995    # daily multiplier; aversion halves in about 140 days
     aversion_gain: float = 10.0     # starting value of the gene that turns aversion into not eating
     steer_strength: float = 0.5     # share of that pull used to steer away from foods in sight
+    social_reassurance: float = 0.1   # share of wariness lost watching a relative eat that food
     desperation_below: float = 0.5  # below this share of energy, hunger starts overriding wariness
     aversion_gain_mutation: float = 0.5  # how much that gene varies between parent and child
 

@@ -165,11 +165,16 @@ class BrainPolicy:
         steer = np.zeros((len(agents), 4), dtype=np.float32)
         for i, agent in enumerate(agents):
             hunger = 1.0 - agent.energy / config.max_energy
+            kind = config.item(int(world.plants[agent.x, agent.y]))
+            # Hunger itself: an urge to bite what's underfoot, unless it's known to be no
+            # food at all. When starving it outweighs wariness and the pulls to follow,
+            # wander or seek company: better a doubtful meal than none.
+            if kind is not None and hunger > 0.4 and kind.color not in agent.memory.useless:
+                eat[i] += config.hunger_urge * (hunger - 0.4) / 0.6
             if hunger < 0.1 or not agent.memory.trust:
                 continue
-            kind = config.item(int(world.plants[agent.x, agent.y]))
             if kind is not None:
-                eat[i] = config.trust_pull * agent.memory.trusted(kind.color) * (0.5 + hunger)
+                eat[i] += config.trust_pull * agent.memory.trusted(kind.color) * (0.5 + hunger)
             best_r, best = None, 0.0
             for r in range(len(RAY_DIRECTIONS)):
                 closeness = inputs[i, r * RAY_SIZE + 7]
@@ -197,8 +202,9 @@ class BrainPolicy:
                 if parent is not None and parent.alive:
                     dx, dy = parent.x - agent.x, parent.y - agent.y
                     if max(abs(dx), abs(dy)) > 2:
+                        fed = max(0.2, agent.energy / config.max_energy)   # a hungry child stops to eat
                         for m in cls._toward(dx, dy):
-                            pull[i, m] += config.follow_pull
+                            pull[i, m] += config.follow_pull * fed
             water_need = 1.0 - agent.water / config.max_water
             water_seen = any(inputs[i, r * RAY_SIZE + 3] > 0 for r in rays)
             if water_need > 0.4 and not water_seen and agent.memory.water_at is not None:
@@ -242,6 +248,7 @@ class BrainPolicy:
             ready = (agent.age >= config.maturity_age and agent.reproduce_cooldown == 0
                      and agent.energy >= config.reproduce_energy and agent.grief == 0)
             strength = (config.mating_pull if ready else 0.0) + config.lonely_pull * agent.loneliness
+            strength *= max(0.2, agent.energy / config.max_energy)   # hunger comes before company
             if strength < 0.05:
                 continue
             for r, (dx, dy) in enumerate(RAY_DIRECTIONS):

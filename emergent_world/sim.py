@@ -588,6 +588,8 @@ class Simulation:
         agent.memory.record_meal(self.tick_count, color)
         for kin in self.kin_watching(agent):
             kin.memory.saw_kin_eat(self.tick_count, agent.id, color)
+            if color in kin.memory.aversion:   # they ate it and seem fine: maybe it isn't so bad
+                kin.memory.aversion[color] *= 1.0 - c.social_reassurance
             if agent.id in (kin.parent_id, kin.other_parent_id):
                 if kin.memory.trusted(color) < 0.2 and ("learned", color) not in kin.firsts:
                     kin.firsts.add(("learned", color))

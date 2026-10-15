@@ -41,3 +41,31 @@ def test_orphans_keep_close_to_kin():
     child.kin.add(aunt.id)
     a.alive = False
     assert BrainPolicy._guardian(child, sim.by_id, sim.config) is aunt
+
+
+def test_starving_overrides_wariness_but_not_known_non_food():
+    sim, a = _sim()
+    c = sim.config
+    plant = c.item_id("green plant")
+    sim.world.plants[a.x, a.y] = plant
+    a.memory.aversion[c.item(plant).color] = 0.5
+    a.energy = 0.1 * c.max_energy
+    eat, _ = BrainPolicy.trust_pull([a], sim.world, __import__("numpy").zeros((1, 200)), c)
+    assert eat[0] > 0
+    rock = c.item_id("grey rock")
+    sim.world.plants[a.x, a.y] = rock
+    a.memory.useless.add(c.item(rock).color)
+    eat, _ = BrainPolicy.trust_pull([a], sim.world, __import__("numpy").zeros((1, 200)), c)
+    assert eat[0] == 0
+
+
+def test_watching_family_eat_a_food_eases_wariness_of_it():
+    sim, a = _sim()
+    b = sim.agents[1]
+    b.x, b.y = a.x + 1, a.y
+    a.kin.add(b.id)
+    b.kin.add(a.id)
+    kind = sim.config.item(sim.config.item_id("green plant"))
+    a.memory.aversion[kind.color] = 0.5
+    sim._consume(b, kind)
+    assert a.memory.aversion[kind.color] < 0.5
