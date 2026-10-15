@@ -130,3 +130,13 @@ def test_behaviour_ecology_and_made_activity_metrics():
     assert 0 <= s["share_doing"] <= 1
     assert s["made_kinds_ever"] >= 1 and s["made_activity_total"] > 0
     assert "cv_food" in s and s["species_lost"] >= 0
+
+
+def test_report_lists_every_batch_against_the_reference(tmp_path):
+    rows = [{"alive_mean": 10.0 + i} for i in range(4)]
+    for name, shift in (("ref", 0), ("up", 10)):
+        d = tmp_path / name / "s"
+        d.mkdir(parents=True)
+        (d / "summary.json").write_text(json.dumps([{"alive_mean": r["alive_mean"] + shift} for r in rows]))
+    md = experiment.report(tmp_path / "ref" / "s", [tmp_path / "up" / "s"], ["alive_mean"])
+    assert "| alive_mean |" in md and "**+10" in md

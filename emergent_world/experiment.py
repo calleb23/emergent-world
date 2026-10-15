@@ -235,6 +235,35 @@ def batch_markdown(rows: list[dict], keys=HEADLINE) -> str:
     return "\n".join(lines)
 
 
+REPORT_KEYS = ("alive_mean", "life_expectancy_days", "births_per_person_year", "max_generation",
+               "share_dehydration", "share_starvation", "share_poison", "discoveries",
+               "count_transmission", "count_comfort", "mood_mean")
+
+
+def report(reference, others: list, keys=REPORT_KEYS) -> str:
+    """One table: each batch's difference from the reference batch, per metric,
+    with its 95% interval. Bold where the interval excludes zero."""
+    ref_rows = load_summary(reference)
+    name = lambda path: Path(path).parent.name
+    lines = [f"Reference: **{name(reference)}** ({len(ref_rows)} worlds). Each cell: difference from the "
+             "reference (95% bootstrap interval); **bold** where the interval excludes zero.", "",
+             "| metric | " + name(reference) + " | " + " | ".join(name(o) for o in others) + " |",
+             "|---|---|" + "---|" * len(others)]
+    tables = [compare(ref_rows, load_summary(o), keys) for o in others]
+    for k, key in enumerate(keys):
+        ref_mean = tables[0][k]["a_mean"] if tables else values(ref_rows, key).mean()
+        cells = []
+        for t in tables:
+            r = t[k]
+            if r["b_mean"] is None or r["a_mean"] is None:
+                cells.append("–")
+                continue
+            text = f"{r['b_mean'] - r['a_mean']:+.3g} ({r['diff_lo']:+.2g}, {r['diff_hi']:+.2g})"
+            cells.append(f"**{text}**" if r["clear"] else text)
+        lines.append(f"| {key} | {ref_mean:.3g} | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def verify(days: int = 30, seed: int = 0) -> bool:
     """Run the same short world twice; True if the two are identical."""
     job = {"index": 0, "seed": seed, "ticks": days * TICKS_PER_DAY, "overrides": {}}
@@ -257,6 +286,9 @@ def main(argv=None):
     c = sub.add_parser("compare", help="compare two batches")
     c.add_argument("a")
     c.add_argument("b")
+    rp = sub.add_parser("report", help="compare several batches against a reference batch")
+    rp.add_argument("reference")
+    rp.add_argument("others", nargs="+")
     v = sub.add_parser("verify", help="check a world replays identically")
     v.add_argument("--days", type=int, default=30)
     args = parser.parse_args(argv)
@@ -270,6 +302,8 @@ def main(argv=None):
     elif args.command == "compare":
         print(table_markdown(compare(load_summary(args.a), load_summary(args.b)),
                              Path(args.a).parent.name or "A", Path(args.b).parent.name or "B"))
+    elif args.command == "report":
+        print(report(args.reference, args.others))
     elif args.command == "verify":
         ok = verify(args.days)
         print("identical" if ok else "NOT identical: something random isn't seeded")
