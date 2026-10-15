@@ -166,6 +166,24 @@ In a two-year test run (seed 0) nobody was told any of this, and: the first shar
 was struck on day 26, lightning started a fire on day 87, the first nut was cracked and
 eaten on day 341, and someone made fire by rubbing sticks early in year 2.
 
+## Experiments
+
+One world is far too noisy to judge a change by: on the same code, survivors after
+1.5 years ranged from 3 to 21 between seeds. Judge changes with batches.
+
+    python -m emergent_world.experiment run --name baseline --seeds 8 --years 2
+    python -m emergent_world.experiment run --name no-imitation --set imitation=False
+    python -m emergent_world.experiment compare runs/baseline/<stamp> runs/no-imitation/<stamp>
+    python -m emergent_world.experiment verify     # same seed, same world, exactly
+
+Each batch writes `runs/<name>/<stamp>/`: `manifest.json` (git commit, config,
+overrides, seeds), `seed_<k>.jsonl` (one line per simulated day) and `summary.json`
+(one row per seed: survival, life expectancy, causes of death, discoveries and when,
+social events, genome and temperament diversity). `compare` prints each headline
+metric for both batches with a 95% bootstrap interval for the difference. Seeds
+come from NumPy's `SeedSequence`, and worlds are identical whatever the worker count
+or hash seed. Results worth keeping go in `docs/experiments/`.
+
 ## Time
 
 **1 tick = 1 hour.** Body needs are set on that clock: with nothing to drink an agent dies

@@ -101,6 +101,8 @@ class Config:
     learning: bool = True
     learn_rate: float = 0.01
     # Feelings and people (agents/emotions.py).
+    emotions: bool = True           # False: no fear, anger, loneliness or joy (for comparison runs)
+    newcomers_from_living: bool = True   # strangers carry a living adult's learned brain (else a founder's)
     fear_weight: float = 0.3        # how bad an hour of fear feels
     anger_weight: float = 0.15
     lonely_weight: float = 0.2

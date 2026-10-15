@@ -1,6 +1,6 @@
 """The simulation: owns the world, the agents and the tick loop."""
 
-from collections import deque
+from collections import Counter, deque
 
 import numpy as np
 
@@ -43,6 +43,8 @@ class Simulation:
         # The world's history: notable firsts and records, as (tick, text).
         self.history: list[tuple[int, str]] = []
         self._world_firsts: set = set()
+        self.first_ticks: dict = {}   # world firsts (chronicle keys) -> tick they happened
+        self.counts = Counter()        # social events: gifts, thefts, hits, comforts, calls, transmissions
         self._oldest_death = 0
         self._deepest_generation = 0
         self._most_alive = 0
@@ -143,6 +145,7 @@ class Simulation:
             if once in self._world_firsts:
                 return
             self._world_firsts.add(once)
+            self.first_ticks[once if isinstance(once, str) else "/".join(map(str, once))] = self.tick_count
         self.history.append((self.tick_count, text))
 
     def log(self, agent: Agent, text: str):
@@ -347,6 +350,7 @@ class Simulation:
         agent.hands, other.hands = other.hands, 0
         other.asleep = False
         emotions.provoke(other, agent, 0.4)
+        self.counts["theft"] += 1
         self.log(agent, f"Took a {held.look} from {other.name}")
         self.log(other, f"{agent.name} took their {held.look}")
         self.chronicle(f"{label(agent)} took a {held.look} from {label(other)}: the first theft", once="theft")
@@ -357,6 +361,7 @@ class Simulation:
         held = c.item(agent.hands)
         damage = c.hit_damage + (0.6 * held.hardness if held is not None else 0.0)
         other.take_damage(damage, "violence")
+        self.counts["hit"] += 1
         other.last_attacker = agent.id
         other.asleep = False
         other.fear = min(1.0, other.fear + 0.4 * (1.5 - emotions.trait(other, "boldness")))
@@ -378,6 +383,7 @@ class Simulation:
         """Hold, groom or soothe the person beside you. It eases fear, grief, loneliness
         and anger in them, softens grudges, and feels good to both."""
         c = self.config
+        self.counts["comfort"] += 1
         other.fear *= 0.6
         other.anger *= 0.7
         other.loneliness = max(0.0, other.loneliness - 0.3)
@@ -409,6 +415,7 @@ class Simulation:
             loud = 1.0 - d / (reach + 1)
             if other.heard_next is None or loud > other.heard_next[2]:
                 other.heard_next = (dx / reach, dy / reach, loud, agent.fear)
+        self.counts["call"] += 1
         self._first(agent, ("called",), "Called out")
 
     def _copied_success(self, agent: Agent, action):
@@ -420,6 +427,7 @@ class Simulation:
         if model is None or ("copied", action) in agent.firsts:
             return
         agent.firsts.add(("copied", action))
+        self.counts["transmission"] += 1
         verb = {Action.PICK_UP: "pick things up", Action.DROP: "put things down", Action.GIVE: "give things",
                 Action.COMFORT: "comfort others", Action.CALL: "call out",
                 Action.STRIKE: "strike things", Action.RUB: "rub things together"}[action]
@@ -505,6 +513,7 @@ class Simulation:
         agent.reward += self.config.gift_reward * emotions.trait(agent, "kindness")
         if agent.id in other.grudges:
             other.grudges[agent.id] *= 0.6   # a peace offering
+        self.counts["gift"] += 1
         self.log(agent, f"Gave a {held.look} to {other.name}")
         self.log(other, f"{agent.name} gave them a {held.look}")
         self.chronicle(f"{label(agent)} gave something to someone for the first time: "
@@ -650,7 +659,8 @@ class Simulation:
         if agent.fatigue >= 1.0 and not agent.asleep:
             agent.take_damage(c.exhaustion_damage, "exhaustion")
 
-        emotions.update(self, agent)
+        if c.emotions:
+            emotions.update(self, agent)
         self._feel(agent)
         if agent.health <= 0:
             self._kill(agent, agent.last_damage)
@@ -791,7 +801,8 @@ class Simulation:
             return
         # Strangers come from people much like those already here: their brain is a
         # varied copy of a living adult's, as that adult is now, with all it has learned.
-        adults = [a for a in self.agents if a.alive and a.brain is not None and a.age >= c.maturity_age]
+        adults = [a for a in self.agents if a.alive and a.brain is not None and a.age >= c.maturity_age
+                  and c.newcomers_from_living]
         brain = None
         if adults:
             kin_of = adults[int(self.rng.integers(0, len(adults)))]
