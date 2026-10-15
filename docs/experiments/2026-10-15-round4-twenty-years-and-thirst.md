@@ -57,3 +57,26 @@ Starvation is now the main cause of death (52%).
 
 Births still trail deaths by about 12 a year, the same as the newcomers who arrive
 (one every 30 days), so the world depends on that immigration.
+
+## Starvation is a winter famine
+
+In the twenty-year worlds (run on with the current code), 88% of starvation deaths
+come in winter: food on the map falls to about 261 items for about 25 people, and the
+median person who starves has 3 safe food items within 6 tiles (spring: 22). The
+population booms to about 60 in summer and winter cuts it back. This is the world's
+seasonal pressure, not a decision bug, so it's left as it is.
+
+## A closed world isn't self-sustaining (yet)
+
+Same code with no newcomers (`newcomer_every_days=0`), 6 years:
+
+```
+batch                   alive      last yr   floor%  net/yr late  max gen
+v4                     28.9         28.1         0%       -12.3       7.1
+v4-closed              15.2*         5.1*       21%*       -3.1*      6.4
+```
+
+Without strangers, 4 of 8 worlds fall to the two-person floor within six years and the
+rest decline. Strangers do two jobs: they make up the shortfall in births, and they
+bring fresh founder genes that counter drift. Making a closed world sustainable would
+take more children per lifetime, a milder winter, or both: a design choice left open.
