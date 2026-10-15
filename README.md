@@ -2,8 +2,8 @@
 
 Blank neural-network agents learning to survive in a world that a god AI grows on demand.
 This repo currently covers **build steps 1–4**: a grid world you can watch, agents with
-bodies and needs, honest senses, tiny neural-network brains with basic instincts, and
-asexual reproduction with mutation. Populations now sustain themselves across generations.
+bodies and needs, honest senses, tiny neural-network brains with basic instincts, evolution,
+and a founder population evolved in a fast "prehistory" that starts long-lived worlds.
 
 ## Setup (Windows, macOS or Linux)
 
@@ -19,23 +19,58 @@ Needs Python 3.10 or newer.
 
 ```
 python main.py                  # watch it live (SPACE pause, UP/DOWN speed, ESC quit)
+python main.py --years 5        # average lifespan of 5 years (default 2)
+python main.py --run-years 30   # how long to simulate (default 10 years)
 python main.py --seed 7         # a different world; the same seed always replays the same run
-python main.py --headless       # no window, runs fast, prints a progress line every 1000 ticks
-python main.py --blank          # start from random brains instead of instincts
+python main.py --headless       # no window, runs fast, prints a progress line every 30 days
+python main.py --blank          # start from random brains instead of founders
 python main.py --random         # random actions instead of brains, as a baseline
-python -m emergent_world.instincts   # retrain instincts.npz (needed after changing senses or brain size)
 python -m pytest                # run the tests
 ```
 
 Every run saves `runs/seed_<n>/deaths.csv` (each death with its cause) and
 `runs/seed_<n>/ticks.csv` (population, plants and average needs per tick).
 
+## Time
+
+**1 tick = 1 hour.** Body needs are set on that clock: with nothing to drink an agent dies
+in about 10 days, with nothing to eat in 2–3 weeks, and poison acts within a day. Lifespan
+is separate, and life stages scale with it: adulthood at 15% of the average lifespan, and
+children spaced 10% of a lifespan apart.
+
+## How the founders are made
+
+Agents start with instincts, then evolve, then live long lives:
+
+1. **Instincts** (`python -m emergent_world.instincts` → `instincts.npz`). A hand-written
+   teacher (`agents/teacher.py`) acts on what things physically are, not what they look
+   like: try to eat any loose solid, drink any liquid, walk toward them when hungry or
+   thirsty (breathing gases will be automatic once gases exist). Brains are trained to
+   copy it, like animals born with instincts. The instincts don't know which solids are
+   food, so **poison gets eaten like anything else**: that's left for agents to learn.
+2. **Prehistory** (`python -m emergent_world.prehistory` → `founders.npz`). The same bodies
+   and hourly needs, but lives of about five weeks, so hundreds of generations pass in
+   about 23 simulated years. Food limits the population, so selection is real. The
+   survivors become the founders: a whole population with different brains.
+3. **The real world** (`python main.py`). Starts from the founders at mixed ages, with
+   long lives. Instincts depend on how fast needs drain, not on lifespan, so they carry
+   over. With long lives, generations are slow; from here, learning and culture (step 5
+   onward) are meant to do the heavy lifting.
+
+Both files are reusable. Rerun both steps after changing the senses or brain size.
+
+**Mutation matters.** Children change about 5% of their brain weights. When every weight
+changed (the first version), good brains drifted apart faster than selection could keep
+them ("mutational meltdown"): those founders were wiped out within three lifetimes when
+put head-to-head against plain instincts. With 5% they win, holding 82–89% of a shared
+world after five lifetimes.
+
 ## What's in the world
 
 - 64x64 grid of grass with a dozen small ponds.
 - Food plants regrow on empty grass. About 10% of new plants are poisonous and only
   *look* slightly different (a slightly yellower green).
-- Eating poison feels like food at first; sickness starts 25 ticks later.
+- Eating poison feels like food at first; sickness starts 25 hours later.
 - Plants wilt over time, so uneaten poison plants don't take over the map.
 - Agents have energy, water, health and a lifespan. They can move, eat, drink (next to
   water) or rest. They die of starvation, dehydration, poison or old age.
@@ -45,17 +80,11 @@ Every run saves `runs/seed_<n>/deaths.csv` (each death with its cause) and
 - **Brains** (`agents/brain.py`): 72 inputs, 16 hidden, 7 actions (about 1,300 weights).
   All brains run as one batched NumPy operation.
 - **Reproduction:** fed, watered adults have a child next to them with a mutated copy of
-  their brain.
-- **Garden curriculum:** hunger and thirst drain slowly at first and ramp to full strength.
-- **Instincts** (`instincts.py`, `agents/teacher.py`): based on what things physically are,
-  not what they look like. Try to eat any loose solid, drink any liquid, and walk toward
-  them when hungry or thirsty (breathing gases will be automatic once gases exist). A
-  hand-written teacher does this using exactly the agents' senses; brains are trained to
-  copy it, and every run starts from mutated copies, like animals born with instincts.
-  The instincts don't know which solids are food, so **poison gets eaten like anything
-  else**: learning what's worth eating is left to the agents.
-- **Bootstrap:** while the population is below a minimum, it's topped up with mutated
-  copies of the fittest recent brains plus some fresh random ones.
+  their brain. Children inherit a `lineage` tag, for tracking whose descendants win.
+- **Garden curriculum** (only for runs from random brains): hunger and thirst drain
+  slowly at first and ramp to full strength.
+- **Bootstrap:** if the population falls below a minimum, it's topped up with mutated
+  copies of founders, instincts, or the fittest recent brains.
 
 All numbers live in `emergent_world/config.py`.
 
@@ -63,29 +92,26 @@ All numbers live in `emergent_world/config.py`.
 
 ```
 emergent_world/
-  config.py        all tunable numbers
-  world/grid.py    terrain, water, plants
-  agents/agent.py  bodies, needs, actions
-  agents/senses.py what agents perceive (batched across all agents)
-  agents/brain.py  tiny neural networks, mutation, batched thinking
-  agents/policy.py who decides actions: brains, or random as a baseline
+  config.py         all tunable numbers, and the hourly clock
+  world/grid.py     terrain, liquids, plants
+  agents/agent.py   bodies, needs, actions
+  agents/senses.py  what agents perceive (batched across all agents)
+  agents/brain.py   tiny neural networks, mutation, batched thinking
+  agents/policy.py  who decides actions: brains, or random as a baseline
   agents/teacher.py the hand-written teacher behind the instincts
-  instincts.py     records the teacher and trains brains to copy it
-  sim.py           tick loop
-  stats.py         death log and per-tick stats
-  viewer.py        pygame window
+  instincts.py      records the teacher and trains brains to copy it
+  prehistory.py     evolves the founder population
+  sim.py            tick loop
+  stats.py          death log and per-tick stats
+  viewer.py         pygame window
 main.py
 tests/
 ```
 
 ## Next steps
 
-Where things stand (seed 0, 60,000 ticks with instincts): the population holds at its
-400-agent cap for 66 generations with no top-ups, and most agents die of old age.
-Random brains average about 355 ticks of life, cloned instincts about 850–900.
+- Agents still eat poison at the rate it grows. Nothing has evolved against it, and the
+  instincts deliberately don't cover it.
 
-4. **Tune evolution:** the population sits at the 400-agent safety cap, so births are
-   limited by the cap rather than food, which weakens selection. Make food the limit.
-   Agents still eat poison at the rate it grows; nothing has evolved against it yet.
 5. **Learning within a lifetime:** an aversion memory from sickness and from watching
    relatives die. Done when the poison-plant test passes.

@@ -5,6 +5,7 @@ Controls: SPACE pause, UP/DOWN change speed, ESC or close window to quit.
 
 import pygame
 
+from emergent_world.config import format_time
 from emergent_world.sim import Simulation
 from emergent_world.world.grid import FOOD, POISON, WATER
 
@@ -84,6 +85,7 @@ def _draw(screen, font, sim: Simulation, speed: int, paused: bool):
     deaths = sim.stats.deaths_by_cause()
     plants = world.plant_counts()
     lines = [
+        format_time(sim.tick_count).capitalize(),
         f"Tick: {sim.tick_count}",
         f"Speed: {speed} t/s" + ("  [PAUSED]" if paused else ""),
         f"Difficulty: {sim.difficulty:.2f}",

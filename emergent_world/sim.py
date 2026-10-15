@@ -27,15 +27,27 @@ class Simulation:
         if self.config.instincts_path:
             from emergent_world.instincts import load
             self.instinct_brain = load(self.config.instincts_path)
+        self.founders = []
+        if self.config.founders_path:
+            from emergent_world.prehistory import load_founders
+            self.founders = load_founders(self.config.founders_path)
         self.stats = Stats()
         self.tick_count = 0
         self.agents: list[Agent] = []
+        self.by_id: dict[int, Agent] = {}
         # (fitness, brain) of recent deaths. Only recent ones, so champions from
         # the easy garden phase don't keep seeding a harder world.
         self.recent_deaths: deque = deque(maxlen=self.config.hall_of_fame_window)
         self._next_id = 0
-        for _ in range(self.config.initial_agents):
-            self.spawn_agent()
+        if self.founders:
+            # Every founder enters the world, at mixed ages so they don't all
+            # grow old and die in the same week.
+            for brain in self.founders:
+                agent = self.spawn_agent(brain=brain)
+                agent.age = int(self.rng.integers(0, agent.lifespan // 2))
+        else:
+            for _ in range(self.config.initial_agents):
+                self.spawn_agent()
 
     @property
     def uses_brains(self) -> bool:
@@ -59,15 +71,51 @@ class Simulation:
             brain=brain,
             generation=parent.generation + 1 if parent else 0,
             parent_id=parent.id if parent else -1,
+            lineage=parent.lineage if parent else "",
+            aversion_gain=self._inherit_gain(parent),
         )
         self._next_id += 1
         self.agents.append(agent)
+        self.by_id[agent.id] = agent
+        if parent is not None:
+            # Family ties: the child knows its parent and siblings, and they know it.
+            for sibling_id in parent.offspring:
+                sibling = self.by_id.get(sibling_id)
+                if sibling is not None:
+                    sibling.kin.add(agent.id)
+                    agent.kin.add(sibling_id)
+            parent.offspring.append(agent.id)
+            parent.kin.add(agent.id)
+            agent.kin.add(parent.id)
         return agent
 
+    def _inherit_gain(self, parent: Agent | None) -> float:
+        c = self.config
+        if parent is None:
+            return c.aversion_gain
+        return max(0.0, parent.aversion_gain + float(self.rng.normal(0, c.aversion_gain_mutation)))
+
+    def plant_color(self, plant: int):
+        """What a plant looks like. Memory is keyed by appearance, never by type."""
+        return {FOOD: self.config.food_color, POISON: self.config.poison_color}.get(plant)
+
+    def kin_watching(self, agent: Agent) -> list:
+        """Living relatives close enough to see this agent."""
+        reach = self.config.vision_range
+        watching = []
+        for kin_id in agent.kin:
+            kin = self.by_id.get(kin_id)
+            if kin is not None and kin.alive and max(abs(kin.x - agent.x), abs(kin.y - agent.y)) <= reach:
+                watching.append(kin)
+        return watching
+
     def new_brain(self) -> Brain:
-        """A brain for an agent with no parent: instincts if we have them, else random."""
+        """A brain for an agent with no parent: a founder, instincts, or random."""
+        if self.founders:
+            founder = self.founders[int(self.rng.integers(0, len(self.founders)))]
+            return founder.mutated(self.rng, self.config.mutation_scale, self.config.mutation_rate)
         if self.instinct_brain is not None:
-            return self.instinct_brain.mutated(self.rng, self.config.mutation_scale)
+            return self.instinct_brain.mutated(self.rng, self.config.mutation_scale, self.config.mutation_rate)
         return Brain.random(self.rng)
 
     @property
@@ -85,6 +133,8 @@ class Simulation:
                 self._maybe_reproduce(agent)
         # Dead agents live on only in the stats log.
         self.agents = [a for a in self.agents if a.alive]
+        self.by_id = {a.id: a for a in self.agents}
+        self._update_memories()
         if self.uses_brains:
             self._bootstrap()
         self.tick_count += 1
@@ -99,6 +149,12 @@ class Simulation:
                 agent.y += dy
         elif action == Action.EAT:
             plant = self.world.take_plant(agent.x, agent.y)
+            color = self.plant_color(plant)
+            if color is not None:
+                self.stats.record_meal_by_learning(agent, plant == POISON)
+                agent.memory.record_meal(self.tick_count, color)
+                for kin in self.kin_watching(agent):
+                    kin.memory.saw_kin_eat(self.tick_count, agent.id, color)
             if plant == FOOD:
                 agent.energy = min(c.max_energy, agent.energy + c.food_energy)
                 self.stats.record_meal(agent, "food")
@@ -137,6 +193,9 @@ class Simulation:
             if sickness.delay > 0:
                 sickness.delay -= 1
             else:
+                if not sickness.felt:
+                    sickness.felt = True
+                    agent.memory.got_sick(self.tick_count, c.aversion_window, c.sickness_aversion)
                 agent.take_damage(sickness.damage, "poison")
                 sickness.duration -= 1
         agent.sicknesses = [s for s in agent.sicknesses if s.duration > 0]
@@ -162,7 +221,7 @@ class Simulation:
         agent.water = max(0.0, agent.water - c.reproduce_cost_water)
         agent.reproduce_cooldown = c.reproduce_cooldown
         agent.children += 1
-        brain = agent.brain.mutated(self.rng, c.mutation_scale) if agent.brain else None
+        brain = agent.brain.mutated(self.rng, c.mutation_scale, c.mutation_rate) if agent.brain else None
         child = self.spawn_agent(x, y, brain=brain, parent=agent,
                                  energy=c.child_energy, water=c.child_water)
         self.stats.record_birth(child)
@@ -186,13 +245,26 @@ class Simulation:
             brain = None
             if best and self.rng.random() < c.reseed_from_best:
                 parent = best[int(self.rng.integers(0, len(best)))]
-                brain = parent.mutated(self.rng, c.mutation_scale)
+                brain = parent.mutated(self.rng, c.mutation_scale, c.mutation_rate)
             self.spawn_agent(brain=brain)
             self.stats.reseeded += 1
+
+    def _update_memories(self):
+        c = self.config
+        for agent in self.agents:
+            agent.memory.settle_meals(self.tick_count, c.aversion_window, c.learned_safety)
+            if self.tick_count % 24 == 0:
+                agent.memory.forget(self.tick_count, c.aversion_window, c.aversion_fade)
 
     def _kill(self, agent: Agent, cause: str):
         agent.alive = False
         agent.cause_of_death = cause
+        if cause == "poison":
+            for kin in self.kin_watching(agent):
+                kin.memory.saw_kin_die_of_poison(self.tick_count, agent.id,
+                                                 self.config.aversion_window,
+                                                 self.config.witness_aversion)
+                self.stats.witnessed_deaths += 1
         self.stats.record_death(agent, self.tick_count)
         if agent.brain is not None:
             fitness = agent.age + self.config.child_fitness * agent.children
