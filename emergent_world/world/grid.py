@@ -185,9 +185,10 @@ class World:
         """The nearest finished shelter within `reach` tiles, or None."""
         x0, x1 = max(0, x - reach), min(self.width, x + reach + 1)
         y0, y1 = max(0, y - reach), min(self.height, y + reach + 1)
-        found = np.argwhere(self.shelter[x0:x1, y0:y1])
-        if len(found) == 0:
+        window = self.shelter[x0:x1, y0:y1]
+        if not window.any():
             return None
+        found = np.argwhere(window)
         sx, sy = found[0]
         return int(sx + x0), int(sy + y0)
 

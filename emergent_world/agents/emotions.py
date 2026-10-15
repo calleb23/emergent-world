@@ -57,8 +57,7 @@ def update(sim, agent) -> None:
     threat = 0.0
     world = sim.world
     x0, y0 = max(0, agent.x - 2), max(0, agent.y - 2)
-    near = world.plants[x0:agent.x + 3, y0:agent.y + 3]
-    if sim.biter_ids and np.isin(near, sim.biter_ids).any():
+    if sim.biter_ids and sim.danger_tiles()[x0:agent.x + 3, y0:agent.y + 3].any():
         threat += 0.15
     if world.fire[x0:agent.x + 2, y0:agent.y + 2].any():
         threat += 0.1

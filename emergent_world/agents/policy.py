@@ -244,6 +244,10 @@ class BrainPolicy:
         others = np.array(AGENT_COLOR) / 255.0
         pull = np.zeros((len(agents), 4), dtype=np.float32)
         move_of = {(0, -1): 0, (0, 1): 1, (1, 0): 2, (-1, 0): 3}
+        n_rays = len(RAY_DIRECTIONS)
+        rays = inputs[:, :n_rays * RAY_SIZE].reshape(len(agents), n_rays, RAY_SIZE)
+        # Same test as np.allclose(color, others, atol=0.01), for every ray at once.
+        person_seen = (np.abs(rays[:, :, 4:7] - others) <= 0.01 + 1e-5 * np.abs(others)).all(-1) & (rays[:, :, 7] > 0)
         for i, agent in enumerate(agents):
             ready = (agent.age >= config.maturity_age and agent.reproduce_cooldown == 0
                      and agent.energy >= config.reproduce_energy and agent.grief == 0)
@@ -252,8 +256,8 @@ class BrainPolicy:
             if strength < 0.05:
                 continue
             for r, (dx, dy) in enumerate(RAY_DIRECTIONS):
-                closeness = inputs[i, r * RAY_SIZE + 7]
-                if closeness > 0 and np.allclose(inputs[i, r * RAY_SIZE + 4:r * RAY_SIZE + 7], others, atol=0.01):
+                if person_seen[i, r]:
+                    closeness = inputs[i, r * RAY_SIZE + 7]
                     moves = [move_of[(dx, 0)], move_of[(0, dy)]] if dx and dy else [move_of[(dx, dy)]]
                     for m in moves:
                         pull[i, m] += strength * (0.5 + closeness) / len(moves)

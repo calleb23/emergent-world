@@ -413,13 +413,20 @@ class Simulation:
         self.chronicle(f"{label(agent)} comforted {label(other)}" + (", who was upset" if upset else ""),
                        once=("comfort", upset))
 
+    def danger_tiles(self) -> np.ndarray:
+        """Where the biting animals are this hour (worked out once per hour)."""
+        if getattr(self, "_danger_tick", None) != self.tick_count:
+            self._danger = np.isin(self.world.plants, self.biter_ids)
+            self._danger_tick = self.tick_count
+        return self._danger
+
     def call_context(self, agent: Agent) -> str:
         """What a caller's situation is, for measuring whether calls mean anything.
         Never shown to agents."""
         w, x, y = self.world, agent.x, agent.y
         x0, y0 = max(0, x - 3), max(0, y - 3)
         near = w.plants[x0:x + 4, y0:y + 4]
-        if (self.biter_ids and np.isin(near, self.biter_ids).any()) or w.fire[x0:x + 4, y0:y + 4].any() \
+        if (self.biter_ids and self.danger_tiles()[x0:x + 4, y0:y + 4].any()) or w.fire[x0:x + 4, y0:y + 4].any() \
                 or agent.fear > 0.5:
             return "danger"
         if near.any() and np.isin(near, self.safe_food_ids).any():
