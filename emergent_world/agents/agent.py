@@ -39,6 +39,11 @@ class Agent:
     water: float
     health: float
     lifespan: int
+    brain: object = None    # a Brain; None when using the random policy
+    generation: int = 0
+    parent_id: int = -1     # -1 for agents spawned by the bootstrap
+    children: int = 0
+    reproduce_cooldown: int = 0
     age: int = 0
     alive: bool = True
     cause_of_death: str = ""

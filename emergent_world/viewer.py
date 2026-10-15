@@ -86,7 +86,10 @@ def _draw(screen, font, sim: Simulation, speed: int, paused: bool):
     lines = [
         f"Tick: {sim.tick_count}",
         f"Speed: {speed} t/s" + ("  [PAUSED]" if paused else ""),
+        f"Difficulty: {sim.difficulty:.2f}",
         f"Alive: {len(sim.living)}",
+        f"Max generation: {max((a.generation for a in sim.living), default=0)}",
+        f"Births: {sim.stats.births}",
         f"Food plants: {plants['food']}",
         f"Poison plants: {plants['poison']}",
         "",

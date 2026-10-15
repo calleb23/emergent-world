@@ -47,7 +47,9 @@ class World:
         self.plants[sprout] = self._random_plant_types(int(sprout.sum()))
 
     def tick(self):
-        """Regrow plants on empty grass tiles."""
+        """Old plants wilt, then new plants sprout on empty grass tiles."""
+        wilt = (self.plants != NO_PLANT) & (self.rng.random(self.plants.shape) < self.config.wilt_chance)
+        self.plants[wilt] = NO_PLANT
         empty = (self.terrain == GRASS) & (self.plants == NO_PLANT)
         sprout = empty & (self.rng.random(empty.shape) < self.config.regrow_chance)
         self.plants[sprout] = self._random_plant_types(int(sprout.sum()))
