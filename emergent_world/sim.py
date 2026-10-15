@@ -6,6 +6,7 @@ import numpy as np
 
 from emergent_world.agents.agent import MOVES, Action, Agent, Sickness
 from emergent_world.agents.brain import Brain
+from emergent_world.agents.names import label, make_name
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
 from emergent_world.stats import Stats
@@ -34,6 +35,12 @@ class Simulation:
             from emergent_world.prehistory import load_founders
             self.founders = load_founders(self.config.founders_path)
         self.stats = Stats()
+        # The world's history: notable firsts and records, as (tick, text).
+        self.history: list[tuple[int, str]] = []
+        self._world_firsts: set = set()
+        self._oldest_death = 0
+        self._deepest_generation = 0
+        self._most_alive = 0
         self.tick_count = 0
         self.agents: list[Agent] = []
         self.by_id: dict[int, Agent] = {}
@@ -86,8 +93,10 @@ class Simulation:
             generation=parent.generation + 1 if parent else 0,
             parent_id=parent.id if parent else -1,
             lineage=parent.lineage if parent else "",
+            name=make_name(self.rng),
             aversion_gain=self._inherit_gain(parent),
         )
+        agent.line = parent.line if parent is not None else agent.name
         self._next_id += 1
         self.agents.append(agent)
         self.by_id[agent.id] = agent
@@ -101,13 +110,25 @@ class Simulation:
             parent.offspring.append(agent.id)
             parent.kin.add(agent.id)
             agent.kin.add(parent.id)
-            self.log(agent, f"Born to #{parent.id}")
-            self.log(parent, f"Had a child, #{agent.id}")
+            self.log(agent, f"Born to {label(parent)}, of the {agent.line} line")
+            if agent.generation > self._deepest_generation and agent.generation % 5 == 0:
+                self._deepest_generation = agent.generation
+                self.chronicle(f"The {agent.line} line reached its {agent.generation}th generation "
+                               f"with the birth of {label(agent)}")
+            self.log(parent, f"Had a child, {label(agent)}")
         else:
-            self.log(agent, "Arrived in the world")
+            self.log(agent, f"Arrived in the world, founding the {agent.line} line")
         return agent
 
     # --- Life stories -------------------------------------------------------
+
+    def chronicle(self, text: str, once: object = None):
+        """Record a moment in the world's history (once per key, if one is given)."""
+        if once is not None:
+            if once in self._world_firsts:
+                return
+            self._world_firsts.add(once)
+        self.history.append((self.tick_count, text))
 
     def log(self, agent: Agent, text: str):
         agent.events.append((self.tick_count, text))
@@ -138,9 +159,9 @@ class Simulation:
         nxt = self.by_id.get(self.followed_id) if self.followed_id is not None else None
         if nxt is not None and self.on_event is not None:
             self.on_event(nxt, self.tick_count,
-                          f"Now following #{nxt.id} ("
-                          + (f"{self.relation(dead, nxt)} of #{dead.id}" if nxt.id in dead.kin
-                             else f"no relation to #{dead.id}")
+                          f"Now following {label(nxt)} ("
+                          + (f"{self.relation(dead, nxt)} of {dead.name}" if nxt.id in dead.kin
+                             else f"no relation to {dead.name}")
                           + f"), aged {nxt.age // 24} days")
 
     def _inherit_gain(self, parent: Agent | None) -> float:
@@ -153,6 +174,18 @@ class Simulation:
         """What an item looks like. Memory is keyed by appearance, never by type."""
         kind = self.config.item(plant)
         return kind.color if kind else None
+
+    def kin_hearing(self, agent: Agent) -> list:
+        """Living relatives close enough to hear this agent cry out, but too far to see."""
+        sight, hearing = self.config.vision_range, self.config.hearing_range
+        out = []
+        for kin_id in agent.kin:
+            kin = self.by_id.get(kin_id)
+            if kin is not None and kin.alive:
+                d = max(abs(kin.x - agent.x), abs(kin.y - agent.y))
+                if sight < d <= hearing:
+                    out.append(kin)
+        return out
 
     def kin_watching(self, agent: Agent) -> list:
         """Living relatives close enough to see this agent."""
@@ -205,6 +238,7 @@ class Simulation:
         self.agents = [a for a in self.agents if a.alive]
         self.by_id = {a.id: a for a in self.agents}
         self._update_memories()
+        self._chronicle_tick()
         if self.uses_brains:
             self._bootstrap()
         self.tick_count += 1
@@ -213,6 +247,9 @@ class Simulation:
     def _act(self, agent: Agent, action: Action):
         c = self.config
         if action in MOVES:
+            frail = agent.age / agent.lifespan - c.old_age_from
+            if frail > 0 and self.rng.random() < min(0.5, frail * 2):
+                return   # old legs: this step doesn't happen
             dx, dy = MOVES[action]
             if self.world.is_walkable(agent.x + dx, agent.y + dy):
                 agent.x += dx
@@ -248,6 +285,8 @@ class Simulation:
             agent.firsts.add(color)
             caught = "Caught and ate" if kind.wanders else "Ate"
             self.log(agent, f"{caught} a {look} for the first time")
+            self.chronicle(f"{label(agent)} was the first to {'catch and eat' if kind.wanders else 'eat'} a {look}",
+                           once=("ate", color))
         elif agent.memory.level(color) > 0.5:
             self.log(agent, f"Ate a {look} despite a bad feeling about it")
         self.stats.record_meal_by_learning(agent, kind.harmful)
@@ -282,6 +321,12 @@ class Simulation:
                 thirst *= c.sleep_drain
         agent.energy = max(0.0, agent.energy - c.energy_drain * hunger)
         agent.water = max(0.0, agent.water - c.water_drain * thirst)
+        self._update_fat(agent)
+        agent.grief = max(0, agent.grief - 1)
+        old = agent.age >= c.old_age_from * agent.lifespan
+        if old and ("old",) not in agent.firsts:
+            agent.firsts.add(("old",))
+            self.log(agent, "Growing old: slower to heal, and steps come harder")
 
         for need, level, text in (("food", agent.energy, "Starving: ran out of energy"),
                                   ("water", agent.water, "Parched: ran out of water")):
@@ -313,7 +358,8 @@ class Simulation:
 
         if agent.energy > 0 and agent.water > 0 and not agent.sicknesses:
             rest = c.sleep_healing if agent.asleep else 1.0
-            agent.health = min(c.max_health, agent.health + c.healing * rest)
+            frailty = 0.5 if old else 1.0
+            agent.health = min(c.max_health, agent.health + c.healing * rest * frailty)
         if agent.fatigue >= 1.0 and not agent.asleep:
             agent.take_damage(c.exhaustion_damage, "exhaustion")
 
@@ -321,6 +367,18 @@ class Simulation:
             self._kill(agent, agent.last_damage)
         elif agent.age >= agent.lifespan:
             self._kill(agent, "old_age")
+
+    def _update_fat(self, agent: Agent):
+        """Spare energy is stored as fat; in lean times fat is burned back."""
+        c = self.config
+        if agent.energy > c.store_fat_above * c.max_energy and agent.fat < c.max_fat:
+            moved = min(c.fat_store_rate, c.max_fat - agent.fat)
+            agent.energy -= moved
+            agent.fat += moved * 0.8
+        elif agent.energy < c.burn_fat_below * c.max_energy and agent.fat > 0:
+            burned = min(c.fat_burn_rate, agent.fat)
+            agent.fat -= burned
+            agent.energy += burned
 
     def _update_sleep(self, agent: Agent):
         """Tiredness builds while awake. Tired agents sleep at night and wake
@@ -404,7 +462,7 @@ class Simulation:
         agent.cause_of_death = cause
         self.log(agent, f"Died of {cause.replace('_', ' ')}, aged {agent.age // 24} days")
         for kin in self.kin_watching(agent):
-            text = f"Saw their {self.relation(kin, agent)} #{agent.id} die ({cause.replace('_', ' ')})"
+            text = f"Saw their {self.relation(kin, agent)} {label(agent)} die ({cause.replace('_', ' ')})"
             if cause == "poison":
                 blamed = kin.memory.saw_kin_die_of_poison(self.tick_count, agent.id,
                                                           self.config.aversion_window,
@@ -413,12 +471,45 @@ class Simulation:
                 if blamed:
                     text += "; now wary of " + " and ".join(sorted(self.look_name(b) for b in blamed))
             self.log(kin, text)
+            self._grieve(kin, agent)
+        for kin in self.kin_hearing(agent):
+            self.log(kin, f"Heard their {self.relation(kin, agent)} {label(agent)} cry out, far off, and fall silent")
+            self._grieve(kin, agent)
         if agent.id == self.followed_id:
             self._pick_next_followed(agent)
+        self._chronicle_death(agent, cause)
         self.stats.record_death(agent, self.tick_count)
         if agent.brain is not None:
             fitness = agent.age + self.config.child_fitness * agent.children
             self.recent_deaths.append((fitness, agent.brain))
+
+    def _grieve(self, mourner: Agent, lost: Agent):
+        """Losing close family weighs on someone for days: they want to sit still."""
+        close = lost.id == mourner.parent_id or lost.parent_id == mourner.id
+        mourner.grief = max(mourner.grief, self.config.grief_hours * (2 if close else 1))
+        if close:
+            self.log(mourner, f"Grieving for {lost.name}")
+
+    def _chronicle_death(self, agent: Agent, cause: str):
+        words = cause.replace("_", " ")
+        self.chronicle(f"{label(agent)} became the first to die of {words}", once=("death", cause))
+        days = agent.age // 24
+        if days > self._oldest_death and days > 60:
+            self._oldest_death = days
+            self.chronicle(f"{label(agent)} died aged {days} days, the oldest anyone has lived")
+        if not any(a.alive and a.line == agent.line for a in self.agents):
+            self.chronicle(f"The {agent.line} line died out with {label(agent)}")
+
+    def _chronicle_tick(self):
+        alive = len(self.agents)
+        if alive > self._most_alive and alive >= 20 and alive % 10 == 0:
+            self._most_alive = alive
+            self.chronicle(f"The world's population reached {alive}")
+        if self.climate is not None:
+            if self.climate.weather == "snow":
+                self.chronicle("The first snow fell", once="snow")
+            if self.climate.weather == "storm":
+                self.chronicle("The first storm swept over the world", once="storm")
 
     def run(self, ticks: int, progress_every: int = 0):
         for _ in range(ticks):

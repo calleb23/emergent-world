@@ -46,6 +46,8 @@ class Agent:
     generation: int = 0
     parent_id: int = -1     # -1 for agents spawned by the bootstrap
     lineage: str = ""       # a family tag children inherit, for tracking whose descendants win
+    name: str = ""          # given name, for stories (agents never perceive names)
+    line: str = ""          # family line, named after the founder it descends from
     kin: set = field(default_factory=set)        # ids of parent, children and siblings
     offspring: list = field(default_factory=list)  # ids of this agent's children
     memory: FoodMemory = field(default_factory=FoodMemory)
@@ -54,6 +56,8 @@ class Agent:
     firsts: set = field(default_factory=set)  # first-time experiences already logged
     out_of: set = field(default_factory=set)     # needs currently at zero ("water", "food")
     fatigue: float = 0.0    # 0 rested .. 1 exhausted
+    fat: float = 0.0        # stored energy for lean times
+    grief: int = 0          # hours of grieving left
     asleep: bool = False
     children: int = 0
     reproduce_cooldown: int = 0

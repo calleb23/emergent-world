@@ -31,6 +31,9 @@ class BrainPolicy:
         penalties[:, Action.EAT] = self.eat_penalty(agents, world, config)
         penalties[:, :4] = self.steer_penalty(agents, inputs, config)
         penalties *= self.desperation(agents, config)[:, None]
+        # Grief: a pull toward sitting still (a negative penalty is a nudge toward).
+        grieving = np.array([a.grief > 0 for a in agents])
+        penalties[grieving, Action.REST] -= config.grief_rest
         actions = think([a.brain for a in agents], inputs, self.rng,
                         config.action_selection, config.exploration, penalties)
         return [Action(int(a)) for a in actions]

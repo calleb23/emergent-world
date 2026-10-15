@@ -66,6 +66,17 @@ class Config:
     sleep_healing: float = 2.0      # healing runs this many times faster while asleep
     exhaustion_damage: float = 0.5  # health lost per hour while awake and exhausted
 
+    # Body: fat, aging, voice, grief
+    max_fat: float = 60.0           # the most energy an agent can store as fat
+    store_fat_above: float = 0.85   # energy share above which spare energy is stored as fat
+    fat_store_rate: float = 0.5     # energy per hour moved into fat (80% kept)
+    burn_fat_below: float = 0.35    # energy share below which fat is burned
+    fat_burn_rate: float = 1.0      # fat per hour burned back into energy
+    old_age_from: float = 0.75      # share of lifespan after which agents grow frail
+    hearing_range: int = 16         # tiles: relatives hear a dying cry this far away
+    grief_hours: int = 24 * 4       # how long losing a relative weighs on someone
+    grief_rest: float = 1.5         # how much more grieving agents want to sit still
+
     # Senses and brain
     policy: str = "brain"           # "brain" or "random" (a baseline to compare against)
     vision_range: int = 8           # tiles each vision ray reaches

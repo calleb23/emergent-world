@@ -92,7 +92,8 @@ def test_aversion_holds_back_eating():
 
 def test_life_story_records_birth_sickness_and_witnessed_death():
     sim, parent, child, _ = _family_sim()
-    assert child.events[-1][1] == f"Born to #{parent.id}"
+    assert child.events[-1][1] == f"Born to {parent.name} (#{parent.id}), of the {parent.line} line"
+    assert child.line == parent.line
     assert any("Had a child" in text for _, text in parent.events)
     sim.world.plants[parent.x, parent.y] = POISON
     sim._act(parent, Action.EAT)
@@ -101,8 +102,11 @@ def test_life_story_records_birth_sickness_and_witnessed_death():
     while parent.alive:
         sim._update_body(parent)
     assert parent.events[-1][1].startswith("Died of poison")
-    assert child.events[-1][1] == (f"Saw their parent #{parent.id} die (poison); "
-                                   "now wary of yellow-green plant")
+    texts = [text for _, text in child.events]
+    assert (f"Saw their parent {parent.name} (#{parent.id}) die (poison); "
+            "now wary of yellow-green plant") in texts
+    assert texts[-1] == f"Grieving for {parent.name}"
+    assert child.grief > 0
 
 
 def test_following_passes_to_a_child_on_death():
