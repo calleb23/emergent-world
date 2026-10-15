@@ -88,6 +88,22 @@ def person(agent, now: int, sim=None) -> dict:
     return record
 
 
+def world_stats(sim) -> dict:
+    """The world so far, for the viewer's summary panel: births, deaths by cause,
+    discoveries made, and how people have treated each other."""
+    from emergent_world.metrics import DISCOVERIES
+    causes = sim.stats.deaths_by_cause().most_common(5)
+    found = []
+    for prefix, name in DISCOVERIES.items():
+        ticks = [t for k, t in sim.first_ticks.items() if k == prefix or (prefix.endswith("/") and k.startswith(prefix))]
+        if ticks:
+            found.append([name.replace("_", " "), min(ticks)])
+    found.sort(key=lambda f: f[1])
+    return {"births": sim.stats.births, "deaths": len(sim.stats.deaths),
+            "causes": [[c.replace("_", " "), n] for c, n in causes], "discoveries": found,
+            "social": {k: int(sim.counts[k]) for k in ("gift", "comfort", "theft", "hit", "transmission")}}
+
+
 def history(sim, limit: int | None = None) -> list:
     rows = [[t, text] for t, text in sim.history]
     return rows[-limit:] if limit else rows

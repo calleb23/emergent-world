@@ -85,6 +85,7 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
 .chip.gone { color: var(--muted); text-decoration: line-through; }
 .chip.on { border-color: var(--accent); background: var(--accent-soft); }
 .wary { display: grid; gap: 4px; }
+[hidden] { display: none !important; }
 .wary-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 10px; align-items: center; font-size: 14px; }
 .wary-row .track { height: 7px; }
 .auto { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
@@ -121,6 +122,11 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
       <div class="people">
         <span class="label">Alive now</span>
         <div class="row" id="people"></div>
+      </div>
+      <div class="people" id="world-box" hidden>
+        <span class="label">The world so far</span>
+        <div class="row" id="world-facts"></div>
+        <div class="row" id="world-found"></div>
       </div>
       <div class="people">
         <span class="label">World history, latest first</span>
@@ -466,6 +472,21 @@ const DATA = /*VIEWER_DATA*/null;
         row.innerHTML = `<time>${stamp(tick)}</time><p${bad ? ' class="bad"' : ""}></p>`;
         row.querySelector("p").textContent = text;
         story.appendChild(row);
+      }
+    }
+
+    el("world-box").hidden = !s.world;
+    if (s.world) {
+      const w = s.world, facts = el("world-facts"), found = el("world-found");
+      const key = JSON.stringify(w);
+      if (facts.dataset.key !== key) {
+        facts.dataset.key = key;
+        const chip = text => { const c = document.createElement("span"); c.className = "chip"; c.textContent = text; return c; };
+        facts.replaceChildren(chip(`${w.births} born`), chip(`${w.deaths} died`),
+          ...w.causes.map(([c, n]) => chip(`${n} of ${c}`)),
+          ...Object.entries(w.social).filter(([, n]) => n).map(([k, n]) => chip(`${n} ${k === "transmission" ? "skills passed on" : k + (n === 1 ? "" : "s")}`)));
+        found.replaceChildren(...(w.discoveries.length ? w.discoveries.map(([name, t]) => chip(`${name}: ${stamp(t)}`))
+          : [Object.assign(document.createElement("span"), {className: "empty", textContent: "No discoveries yet"})]));
       }
     }
 
