@@ -28,6 +28,8 @@ def run(years: int, seed: int, founders: str, replay_years: float, out_dir: Path
         config.founders_path = founders
     sim = Simulation(config, seed=seed)
     sim.follow(max(sim.agents, key=lambda a: a.age, default=None))
+    from emergent_world.metrics import Recorder
+    recorder = Recorder(sim)
 
     yearly = []
     everyone = {a.id: a for a in sim.agents}
@@ -38,6 +40,7 @@ def run(years: int, seed: int, founders: str, replay_years: float, out_dir: Path
         alive_samples, mood_samples = [], []
         for hour in range(TICKS_PER_YEAR):
             sim.tick()
+            recorder.sample(sim)
             if hour % 24 == 0:
                 alive_samples.append(len(sim.agents))
                 mood_samples += [a.mood for a in sim.agents]
@@ -86,6 +89,7 @@ def run(years: int, seed: int, founders: str, replay_years: float, out_dir: Path
         "people_ever": len(everyone),
     }
     summary = {"seed": seed, "years": years, "yearly": yearly, "totals": totals,
+               "metrics": recorder.summary(sim),
                "history": [[t, text] for t, text in sim.history]}
     (out_dir / "century.json").write_text(json.dumps(summary))
     print("Totals:", totals)
