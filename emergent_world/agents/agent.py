@@ -52,6 +52,8 @@ class Agent:
     reward: float = 0.0     # how much better or worse they've felt since their last choice
     mood: float = 0.0       # a slow average of reward: how life is going lately
     last_choice: tuple | None = None   # (hidden, action, expected value), for learning
+    last_seen: object = None           # what they sensed when they made that choice (for onlookers)
+    copied: dict = field(default_factory=dict)   # action -> (who they saw do it, when)
     comfort: float | None = None   # last hour's overall need satisfaction, for working out reward
     last_health: float = 100.0
     generation: int = 0

@@ -100,6 +100,10 @@ class Config:
     # Learning within a lifetime: brains drift toward actions that felt good
     learning: bool = True
     learn_rate: float = 0.01
+    imitation: bool = True          # people learn by watching each other (agents/policy.py)
+    imitation_rate: float = 0.003   # how strongly one sighting shifts the onlooker's brain
+    imitation_payoff: float = 5.0   # how much a visible payoff (or hurt) scales the lesson
+    imitation_skill: float = 0.15   # skills with no immediate payoff are still copied this much
     discount: float = 0.95          # how much the next hour's prospects count against the reward now
     pain_weight: float = 0.05       # bad feeling per point of health lost
     exposure_weight: float = 0.05   # bad feeling per hour caught out in the weather

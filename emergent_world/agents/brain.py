@@ -113,6 +113,20 @@ def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
     return np.minimum((draws > cumulative).sum(axis=1), OUTPUT_SIZE - 1)
 
 
+def imitate(brain: Brain, inputs: np.ndarray, action: int, strength: float) -> None:
+    """Put yourself in someone else's place: seeing what they saw, make the action
+    they took more likely (strength > 0) or less (strength < 0). A softmax step on
+    the last layer, so the other actions give way."""
+    hidden = np.tanh(inputs @ brain.w1 + brain.b1)
+    logits = hidden @ brain.w2 + brain.b2
+    p = np.exp(logits - logits.max())
+    p /= p.sum()
+    target = -p
+    target[action] += 1.0
+    brain.w2 += strength * np.outer(hidden, target).astype(np.float32)
+    brain.b2 += (strength * target).astype(np.float32)
+
+
 def learn(brain: Brain, hidden: np.ndarray, action: int, error: float, rate: float):
     """Nudge the brain's value for the action it took toward what happened next
     (temporal-difference learning on the last layer)."""

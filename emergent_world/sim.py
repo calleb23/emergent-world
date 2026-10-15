@@ -283,16 +283,14 @@ class Simulation:
                 self._consume(agent, held, carried=True)
             else:
                 self._eat(agent)
-        elif action == Action.PICK_UP:
-            self._pick_up(agent)
-        elif action == Action.DROP:
-            self._drop(agent)
-        elif action == Action.GIVE:
-            self._give(agent)
-        elif action == Action.STRIKE:
-            physics.strike(self, agent)
-        elif action == Action.RUB:
-            physics.rub(self, agent)
+        elif action in (Action.PICK_UP, Action.DROP, Action.GIVE, Action.STRIKE, Action.RUB):
+            x, y = agent.x, agent.y
+            before = (agent.hands, int(self.world.plants[x, y]), int(self.world.fire[x, y] > 0))
+            {Action.PICK_UP: self._pick_up, Action.DROP: self._drop, Action.GIVE: self._give,
+             Action.STRIKE: lambda a: physics.strike(self, a), Action.RUB: lambda a: physics.rub(self, a)}[action](agent)
+            after = (agent.hands, int(self.world.plants[x, y]), int(self.world.fire[x, y] > 0))
+            if before != after:
+                self._copied_success(agent, action)
         elif action == Action.DRINK:
             held = c.item(agent.hands)
             if held is not None and held.water and not self.world.next_to_liquid(agent.x, agent.y):
@@ -312,6 +310,20 @@ class Simulation:
                     self.log(agent, "Found water just in time")
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
                 agent.memory.water_at = (agent.x, agent.y)
+
+    def _copied_success(self, agent: Agent, action):
+        """They did something that worked, having lately watched someone else do it."""
+        seen = agent.copied.get(action)
+        if seen is None or agent.age - seen[1] > 72:
+            return
+        model = self.by_id.get(seen[0])
+        if model is None or ("copied", action) in agent.firsts:
+            return
+        agent.firsts.add(("copied", action))
+        verb = {Action.PICK_UP: "pick things up", Action.DROP: "put things down", Action.GIVE: "give things",
+                Action.STRIKE: "strike things", Action.RUB: "rub things together"}[action]
+        self.log(agent, f"Did what they'd watched {model.name} do: learned to {verb}")
+        self.chronicle(f"{label(agent)} learned to {verb} by watching {label(model)}", once=("copied", action))
 
     def _first(self, agent: Agent, key, text: str):
         """Log a life event only the first time it happens."""
@@ -664,7 +676,14 @@ class Simulation:
                 break
         else:
             return
-        agent = self.spawn_agent(x, y)
+        # Strangers come from people much like those already here: their brain is a
+        # varied copy of a living adult's, as that adult is now, with all it has learned.
+        adults = [a for a in self.agents if a.alive and a.brain is not None and a.age >= c.maturity_age]
+        brain = None
+        if adults:
+            kin_of = adults[int(self.rng.integers(0, len(adults)))]
+            brain = kin_of.brain.mutated(self.rng, c.mutation_scale, c.mutation_rate)
+        agent = self.spawn_agent(x, y, brain=brain)
         agent.age = int(c.maturity_age + self.rng.integers(0, max(1, agent.lifespan // 3)))
         agent.events[-1] = (self.tick_count, f"Wandered in from beyond the edge of the world, "
                                              f"founding the {agent.line} line")

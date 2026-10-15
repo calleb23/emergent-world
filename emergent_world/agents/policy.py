@@ -3,8 +3,12 @@
 import numpy as np
 
 from emergent_world.agents.agent import Action
-from emergent_world.agents.brain import OUTPUT_SIZE, learn, think
+from emergent_world.agents.brain import OUTPUT_SIZE, imitate, learn, think
 from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, sense_all
+
+
+MOVE_ACTIONS = (Action.NORTH, Action.SOUTH, Action.EAST, Action.WEST, Action.REST)
+SKILL_ACTIONS = (Action.STRIKE, Action.RUB, Action.PICK_UP, Action.DROP, Action.GIVE)
 
 
 class RandomPolicy:
@@ -49,8 +53,12 @@ class BrainPolicy:
         details = {}
         actions = think([a.brain for a in agents], inputs, self.rng,
                         config.action_selection, config.exploration, penalties, details)
+        if config.imitation and lookup:
+            self._imitate(agents, lookup, config)
         if config.learning:
             self._learn(agents, details, actions, config)
+        for i, agent in enumerate(agents):
+            agent.last_seen = inputs[i]
         return [Action(int(a)) for a in actions]
 
     @staticmethod
@@ -67,6 +75,44 @@ class BrainPolicy:
             agent.reward = 0.0
             a = int(actions[i])
             agent.last_choice = (hidden[i].copy(), a, float(values[i, a]))
+
+    @staticmethod
+    def _imitate(agents: list, lookup: dict, config):
+        """People watch each other. Seeing someone nearby do something (not just walk
+        about), an onlooker puts themselves in that person's place and leans toward
+        doing the same in the same situation: more if it seemed to pay off, away from
+        it if it plainly hurt. Skills with no immediate payoff (striking, rubbing,
+        carrying, giving) still get copied a little: people copy what others bother
+        doing. Relatives and friends are watched most, and children copy most of all."""
+        demos = []
+        for model in lookup.values():
+            last = model.last_choice
+            if (not model.alive or model.asleep or last is None or model.last_seen is None
+                    or last[1] in MOVE_ACTIONS or model.age < config.maturity_age):
+                continue
+            payoff = float(np.clip(model.reward * config.imitation_payoff, -1.0, 1.0))
+            if last[1] in SKILL_ACTIONS:
+                payoff += config.imitation_skill
+            if abs(payoff) > 0.05:
+                demos.append((model, last[1], payoff))
+        if not demos:
+            return
+        reach = config.vision_range
+        for agent in agents:
+            best = None
+            for model, action, payoff in demos:
+                if model is agent or max(abs(model.x - agent.x), abs(model.y - agent.y)) > reach:
+                    continue
+                regard = 0.3 + agent.known.get(model.id, 0.0) + (1.0 if model.id in agent.kin else 0.0)
+                if best is None or regard > best[0]:
+                    best = (regard, model, action, payoff)
+            if best is None:
+                continue
+            regard, model, action, payoff = best
+            child = 2.0 if agent.age < config.maturity_age else 1.0
+            imitate(agent.brain, model.last_seen, action, config.imitation_rate * regard * child * payoff)
+            if payoff > 0:
+                agent.copied[action] = (model.id, agent.age)
 
     @staticmethod
     def _toward(dx: int, dy: int) -> list:

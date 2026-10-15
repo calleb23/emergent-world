@@ -75,6 +75,20 @@ outcomes. People can strike what's underfoot with what they hold, or rub them to
   on open ground grow into green plants after a week; eating a blue flower ends sickness.
 - **Stoking**: dropping something burnable into a fire feeds it.
 
+### Imitation
+
+People watch each other (`BrainPolicy._imitate`). When someone nearby does
+something other than walk about, an onlooker puts themselves in that person's place,
+seeing what they saw, and leans toward the same action in the same situation. They lean
+more if it visibly paid off, and away from it if it plainly hurt. Skills with no immediate payoff (striking,
+rubbing, carrying, giving) are still copied a little. Relatives and friends are watched
+most, and children copy twice as much. The history notes when a skill first passes
+from one person to another. In 1.5-year runs over four seeds, imitation raised the
+average survivors from 8 to 15.
+
+Newcomers who wander in carry a varied copy of a living adult's brain, as it is now,
+with everything it has learned, so the world's know-how isn't reset by strangers.
+
 ### Tension and adhesion
 
 - **Joining**: drop something onto something else to press them together
