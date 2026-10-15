@@ -130,6 +130,11 @@ class Config:
     vision_range: int = 8           # tiles each vision ray reaches
     action_selection: str = "argmax"  # "argmax": take the brain's top action; "sample": draw by probability
     exploration: float = 0.1        # argmax only: chance of a random action instead
+    # Learning genes (agents/genes.py): learn_rate, imitation_rate and exploration
+    # are inherited per person and can evolve.
+    learning_genes: bool = True     # False: genes drift but have no effect (the control)
+    gene_mutation: float = 0.1      # log-scale variation per child
+    gene_founder_spread: float = 0.5   # log-scale spread among founders and their stand-ins
 
     # Reproduction and evolution (asexual for now; two parents comes later)
     maturity_fraction: float = 0.15 # share of average lifespan before an agent can reproduce

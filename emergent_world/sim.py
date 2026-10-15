@@ -7,7 +7,7 @@ import numpy as np
 from emergent_world.agents.agent import MOVES, Action, Agent, Sickness
 from emergent_world.agents.brain import Brain
 from emergent_world import behaviour
-from emergent_world.agents import emotions
+from emergent_world.agents import emotions, genes
 from emergent_world.agents.names import label, make_name
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
@@ -109,6 +109,7 @@ class Simulation:
         )
         agent.line = parent.line if parent is not None else agent.name
         agent.traits = emotions.inherit_traits(self.rng, parent, father)
+        agent.genes = genes.inherit(self.rng, c, parent, father)
         self._next_id += 1
         self.agents.append(agent)
         self.by_id[agent.id] = agent
@@ -814,6 +815,7 @@ class Simulation:
         agent = self.spawn_agent(x, y, brain=brain)
         if adults:
             agent.traits = emotions.inherit_traits(self.rng, kin_of)
+            agent.genes = genes.inherit(self.rng, c, kin_of)
         agent.age = int(c.maturity_age + self.rng.integers(0, max(1, agent.lifespan // 3)))
         agent.events[-1] = (self.tick_count, f"Wandered in from beyond the edge of the world, "
                                              f"founding the {agent.line} line")

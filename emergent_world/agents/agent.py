@@ -96,6 +96,7 @@ class Agent:
     loneliness: float = 0.0
     joy: float = 0.0
     traits: dict = field(default_factory=dict)   # boldness, sociability, temper, kindness
+    genes: dict = field(default_factory=dict)    # learning genes: see agents/genes.py
     grudges: dict = field(default_factory=dict)  # id -> 0..1: people who wronged them
     heard: tuple | None = None       # loudest call heard last hour: (dx, dy, loudness, alarm)
     heard_next: tuple | None = None  # calls arriving this hour, heard next hour

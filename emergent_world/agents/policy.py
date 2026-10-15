@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from emergent_world.agents import genes
 from emergent_world.agents.agent import Action
 from emergent_world.agents.brain import OUTPUT_SIZE, imitate, learn, think
 from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, sense_all
@@ -55,7 +56,8 @@ class BrainPolicy:
         penalties += self.social_penalty(agents, lookup or {}, config)
         details = {}
         actions = think([a.brain for a in agents], inputs, self.rng,
-                        config.action_selection, config.exploration, penalties, details)
+                        config.action_selection,
+                        np.array([genes.value(a, config, "exploration") for a in agents]), penalties, details)
         if config.imitation and lookup:
             self._imitate(agents, lookup, config)
         if config.learning:
@@ -74,7 +76,7 @@ class BrainPolicy:
             if last is not None:
                 prev_hidden, prev_action, prev_value = last
                 error = agent.reward + config.discount * float(values[i].max()) - prev_value
-                learn(agent.brain, prev_hidden, prev_action, error, config.learn_rate)
+                learn(agent.brain, prev_hidden, prev_action, error, genes.value(agent, config, "learn_rate"))
             agent.reward = 0.0
             a = int(actions[i])
             agent.last_choice = (hidden[i].copy(), a, float(values[i, a]))
@@ -113,7 +115,8 @@ class BrainPolicy:
                 continue
             regard, model, action, payoff = best
             child = 2.0 if agent.age < config.maturity_age else 1.0
-            imitate(agent.brain, model.last_seen, action, config.imitation_rate * regard * child * payoff)
+            imitate(agent.brain, model.last_seen, action,
+                    genes.value(agent, config, "imitation_rate") * regard * child * payoff)
             if payoff > 0:
                 agent.copied[action] = (model.id, agent.age)
 

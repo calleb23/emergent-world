@@ -138,6 +138,13 @@ class Recorder:
         out["discoveries"] = sum(1 for name in DISCOVERIES.values() if out[f"day_{name}"] is not None)
         out["genome_diversity"] = genome_diversity(people)
         out.update(behaviour_metrics(sim))
+        from emergent_world.agents.genes import GENES
+        for g in GENES:
+            vals = [a.genes[g] for a in people if a.genes]
+            # log-ratio of the living's geometric mean to the configured value: 0 = unchanged
+            out[f"gene_{g}_logratio"] = round(float(np.mean(np.log(vals)) - np.log(getattr(sim.config, g))), 4) \
+                if vals else None
+            out[f"gene_{g}_sd"] = round(float(np.std(np.log(vals))), 4) if vals else None
         out.update(self.ecology_metrics())
         out["made_kinds_ever"] = int((self.made_activity > 0).sum())
         out["established_made"] = len(self.made_first_established)
