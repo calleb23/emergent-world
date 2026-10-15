@@ -114,3 +114,19 @@ def test_a_batch_can_fork_from_saved_worlds(tmp_path):
                                 resume_from=first)
     rows = experiment.load_summary(fork)
     assert all(r["days"] == 5 for r in rows)
+
+
+def test_behaviour_ecology_and_made_activity_metrics():
+    sim = Simulation(experiment.make_config({}), seed=2)
+    rec = Recorder(sim)
+    flake = sim.config.item_id("sharp flake")
+    for t in range(40 * TICKS_PER_DAY):
+        sim.tick()
+        if t % TICKS_PER_DAY == 0:
+            sim.world.plants[0, 0] = flake if sim.world.terrain[0, 0] == 0 else sim.world.plants[0, 0]
+        rec.sample(sim)
+    s = rec.summary(sim)
+    assert 0 < s["action_entropy_bits"] <= 4.0
+    assert 0 <= s["share_doing"] <= 1
+    assert s["made_kinds_ever"] >= 1 and s["made_activity_total"] > 0
+    assert "cv_food" in s and s["species_lost"] >= 0

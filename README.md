@@ -179,7 +179,12 @@ One world is far too noisy to judge a change by: on the same code, survivors aft
 Each batch writes `runs/<name>/<stamp>/`: `manifest.json` (git commit, config,
 overrides, seeds), `seed_<k>.jsonl` (one line per simulated day) and `summary.json`
 (one row per seed: survival, life expectancy, causes of death, discoveries and when,
-social events, genome and temperament diversity). `compare` prints each headline
+social events, genome and temperament diversity). Metrics also cover behaviour (how varied people's actions are, how
+often a skill actually changed something), **technology activity**
+(after Bedau and Packard: how many kinds of made things exist, how much they're held
+or lie about, and whether new kinds keep becoming established late in a run), and
+ecology (how much food and critter stocks swing, and which species died out).
+`compare` prints each headline
 metric for both batches with a 95% bootstrap interval for the difference. Seeds
 come from NumPy's `SeedSequence`, and worlds are identical whatever the worker count
 or hash seed. Results worth keeping go in `docs/experiments/`.

@@ -38,6 +38,9 @@ DISCOVERIES = {
 }
 
 
+ACTIVITY_THRESHOLD = 30   # person- or tile-days a made thing must accumulate to count as established
+
+
 class Recorder:
     """Call `sample(sim)` every tick (it acts once a day) and `summary(sim)` at the end."""
 
@@ -45,6 +48,12 @@ class Recorder:
         self.rows: list[dict] = []
         self.peak = 0
         self._groups = {}
+        # Made things: kinds only physics or hands produce (tools, cooked food, cord...).
+        # Their daily presence is the "evolutionary activity" of the world's technology.
+        self._made = [i for i, k in enumerate(sim.config.items, start=1) if not k.spawns]
+        self._species = {k.look: i for i, k in enumerate(sim.config.items, start=1) if k.wanders}
+        self.made_activity = np.zeros(len(sim.config.items) + 1, dtype=np.int64)
+        self.made_first_established: dict[int, int] = {}
         for i, k in enumerate(sim.config.items, start=1):
             group = ("predator" if k.bites and k.wanders else "critter" if k.wanders
                      else "poison" if k.harmful else "food" if k.edible else None)
@@ -76,6 +85,17 @@ class Recorder:
         }
         for group, ids in self._groups.items():
             row[group] = int(counts[ids].sum())
+        held = np.bincount([a.hands for a in people], minlength=len(counts)) if people else np.zeros_like(counts)
+        present = counts + held
+        made_now = [i for i in self._made if present[i] > 0]
+        self.made_activity[made_now] += present[made_now]
+        for i in made_now:
+            if i not in self.made_first_established and self.made_activity[i] >= ACTIVITY_THRESHOLD:
+                self.made_first_established[i] = row["day"]
+        row["made_kinds"] = len(made_now)
+        row["established_made"] = len(self.made_first_established)
+        for look, i in self._species.items():
+            row["n_" + look.replace(" ", "_")] = int(counts[i])
         self.rows.append(row)
 
     def fingerprint(self) -> str:
@@ -117,11 +137,51 @@ class Recorder:
             out[f"day_{name}"] = round(min(ticks) / TICKS_PER_DAY, 1) if ticks else None
         out["discoveries"] = sum(1 for name in DISCOVERIES.values() if out[f"day_{name}"] is not None)
         out["genome_diversity"] = genome_diversity(people)
+        out.update(behaviour_metrics(sim))
+        out.update(self.ecology_metrics())
+        out["made_kinds_ever"] = int((self.made_activity > 0).sum())
+        out["established_made"] = len(self.made_first_established)
+        out["made_activity_total"] = int(self.made_activity.sum())
+        half = (self.rows[-1]["day"] // 2) if self.rows else 0
+        out["new_established_late"] = sum(1 for d in self.made_first_established.values() if d > half)
         for t in TRAITS:
             values = [a.traits.get(t, 0.5) for a in people if a.traits]
             out[f"trait_{t}_mean"] = round(float(np.mean(values)), 4) if values else None
             out[f"trait_{t}_sd"] = round(float(np.std(values)), 4) if values else None
         return out
+
+
+    def ecology_metrics(self) -> dict:
+        """How steady the world's stocks are, and which species died out."""
+        out = {}
+        if len(self.rows) < 2:
+            return out
+        for key in ("food", "critter", "predator"):
+            series = np.array([r.get(key, 0) for r in self.rows], dtype=float)
+            out[f"cv_{key}"] = round(float(series.std() / series.mean()), 4) if series.mean() > 0 else None
+        gone = [k[2:] for k in self.rows[0] if k.startswith("n_")
+                and self.rows[0][k] > 0 and self.rows[-1][k] == 0]
+        out["species_lost"] = len(gone)
+        out["species_lost_names"] = gone
+        return out
+
+
+def behaviour_metrics(sim) -> dict:
+    """How varied people's actions are, and how often skilled actions did something."""
+    from emergent_world.agents.agent import Action
+    counts = np.array([sim.action_counts[int(a)] for a in Action], dtype=float)
+    total = counts.sum()
+    out = {"actions_total": int(total)}
+    if total:
+        p = counts[counts > 0] / total
+        out["action_entropy_bits"] = round(float(-(p * np.log2(p)).sum()), 4)
+        moves = counts[[Action.NORTH, Action.SOUTH, Action.EAST, Action.WEST, Action.REST]].sum()
+        out["share_doing"] = round(float(1 - moves / total), 4)   # anything but walking or resting
+    effects = {k[7:]: v for k, v in sim.counts.items() if k.startswith("effect_")}
+    out["skill_effects"] = int(sum(effects.values()))
+    for name in ("strike", "rub", "drop", "pick_up", "give"):
+        out[f"effect_{name}"] = int(effects.get(name, 0))
+    return out
 
 
 def genome_diversity(people, sample: int = 30) -> float | None:

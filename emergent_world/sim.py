@@ -45,6 +45,7 @@ class Simulation:
         self._world_firsts: set = set()
         self.first_ticks: dict = {}   # world firsts (chronicle keys) -> tick they happened
         self.counts = Counter()        # social events: gifts, thefts, hits, comforts, calls, transmissions
+        self.action_counts = Counter()  # action id -> times chosen
         self._oldest_death = 0
         self._deepest_generation = 0
         self._most_alive = 0
@@ -254,6 +255,7 @@ class Simulation:
         awake = [a for a in living if not a.asleep]
         actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach, self.by_id)
         for agent, action in zip(awake, actions):
+            self.action_counts[int(action)] += 1
             self._act(agent, action)
             behaviour.after_action(self, agent)
             agent.activity = behaviour.describe(self, agent, action)
@@ -307,6 +309,7 @@ class Simulation:
              Action.STRIKE: lambda a: physics.strike(self, a), Action.RUB: lambda a: physics.rub(self, a)}[action](agent)
             after = (agent.hands, int(self.world.plants[x, y]), int(self.world.fire[x, y] > 0))
             if before != after:
+                self.counts["effect_" + action.name.lower()] += 1
                 self._copied_success(agent, action)
         elif action == Action.DRINK:
             held = c.item(agent.hands)

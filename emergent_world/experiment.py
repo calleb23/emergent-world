@@ -163,7 +163,9 @@ def run_batch(name: str, seeds: int, years: float, overrides: dict, workers: int
 
 HEADLINE = ("alive_mean", "alive_end", "extinct", "life_expectancy_days", "births_per_person_year",
             "max_generation", "share_dehydration", "share_starvation", "share_poison", "share_old_age",
-            "mood_mean", "discoveries", "count_comfort", "count_transmission", "genome_diversity")
+            "mood_mean", "discoveries", "count_comfort", "count_transmission", "genome_diversity",
+            "action_entropy_bits", "share_doing", "skill_effects", "established_made",
+            "new_established_late", "cv_food", "cv_critter", "species_lost")
 
 
 def load_summary(path) -> list[dict]:
