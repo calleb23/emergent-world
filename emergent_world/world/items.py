@@ -64,6 +64,15 @@ class ItemKind:
     carcass: str = ""            # what a critter leaves when killed
     reach: int = 0               # tiles a held tool can strike across (a spear, a bow)
     traps: str = ""              # a critter stepping onto it is caught, becoming this
+    # Nature: animals that eat other things, bite people, and plants that follow the
+    # seasons and the rain.
+    eats: tuple = ()             # looks of things a critter eats when it's next to them
+    hunger: float = 0.0          # chance per hour it eats one of them, if any are beside it
+    bites: float = 0.0           # damage to a person next to it (or handling it), when it bites
+    bite_chance: float = 0.0     # chance per hour it bites someone beside it
+    seasonal: bool = False       # its drops follow the growing season (fruit in summer, none in winter)
+    after_rain: float = 0.0      # chance per hour it springs up on soaked open ground
+    warm: bool = False           # held, it keeps off the cold (not the wet)
 
     @property
     def harmful(self) -> bool:
@@ -126,7 +135,7 @@ DEFAULT_ITEMS = (
              group="tree", immovable=True, hardness=6, mass=50, burn_hours=40, ignites_at=9,
              breaks_into="log", rots_into="log", drops=(("apple", 0.002), ("fallen branch", 0.002))),
     ItemKind("apple", (220, 60, 45), energy=25, spawns=False, regrows=False, wilt_chance=0.003,
-             group="fruit"),
+             group="fruit", rots_into="rotten apple"),
     ItemKind("fallen branch", (125, 95, 60), edible=False, spawns=False, regrows=False,
              wilt_chance=0.0005, group="wood", hardness=4, mass=2, burn_hours=8, ignites_at=5),
     ItemKind("log", (95, 65, 40), edible=False, spawns=False, regrows=False, wilt_chance=0.0003,
@@ -151,7 +160,7 @@ DEFAULT_ITEMS = (
              empties_into="clay pot", breaks_into="pottery shard", brittle=0.05),   # left out, it dries up
     ItemKind("pottery shard", (175, 105, 70), edible=False, spawns=False, regrows=False,
              wilt_chance=0.0, group="tool", hardness=5, mass=0.3, sharp=True),
-    ItemKind("bird egg", (235, 230, 215), energy=20, spawn_weight=0.5, habitat="near_water",
+    ItemKind("bird egg", (235, 230, 215), energy=20, spawn_weight=0.2, habitat="near_water",
              wilt_chance=0.003, group="egg", hardness=0.5, breaks_into="broken egg", brittle=0.3,
              cooks_into="cooked egg"),
     ItemKind("cooked egg", (240, 210, 120), energy=30, spawns=False, regrows=False,
@@ -183,7 +192,7 @@ DEFAULT_ITEMS = (
              wilt_chance=0.0003, group="tool", hardness=5, mass=1, burn_hours=4, ignites_at=5,
              sharp=True),
     ItemKind("cug meat", (200, 90, 90), energy=30, spawns=False, regrows=False,
-             wilt_chance=0.006, group="meat", cooks_into="roasted cug"),
+             wilt_chance=0.006, group="meat", cooks_into="roasted cug", rots_into="rotten meat"),
     ItemKind("broken egg", (250, 220, 90), energy=12, spawns=False, regrows=False,
              wilt_chance=0.02, group="egg"),
 
@@ -227,6 +236,56 @@ DEFAULT_ITEMS = (
              wilt_chance=0.0003, group="tool", mass=1, traps="snared cug"),
     ItemKind("snared cug", (60, 160, 150), energy=35, spawns=False, regrows=False,
              wilt_chance=0.002, group="critter", cooks_into="roasted cug", carcass="cug meat"),
+
+    # --- Animals --------------------------------------------------------------
+    # Deer graze plants and bolt from people; too big to carry, but a fine kill.
+    ItemKind("deer", (185, 135, 85), edible=False, spawn_weight=0.15, regrows=False, wilt_chance=0.0001,
+             wanders=0.3, flees=0.9, breeds=0.0015, max_count=16, group="animal", mass=40, hardness=2,
+             eats=("green plant", "yellow-green plant", "red berry"), hunger=0.05, carcass="venison"),
+    ItemKind("venison", (150, 40, 50), energy=60, spawns=False, regrows=False, wilt_chance=0.005,
+             group="meat", mass=3, cooks_into="roasted venison", rots_into="rotten meat"),
+    ItemKind("roasted venison", (125, 60, 40), energy=80, spawns=False, regrows=False,
+             wilt_chance=0.003, group="cooked"),
+    ItemKind("rotten meat", (110, 120, 70), energy=10, toxin=7.0, toxin_delay=4, toxin_hours=8,
+             spawns=False, regrows=False, wilt_chance=0.01, group="meat"),
+    # Wolves hunt deer and cugs, and bite anyone who comes too close.
+    ItemKind("wolf", (95, 95, 105), edible=False, spawn_weight=0.05, habitat="dry", regrows=False,
+             wilt_chance=0.0001, wanders=0.45, breeds=0.0006, max_count=6, group="animal", mass=30,
+             hardness=3, eats=("cug", "deer", "snared cug", "cug meat", "venison"), hunger=0.15,
+             bites=10.0, bite_chance=0.12, carcass="wolf pelt"),
+    ItemKind("wolf pelt", (130, 125, 120), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0002, group="material", mass=2, warm=True, flexible=True, tensile=3,
+             burn_hours=3, ignites_at=6),
+    # Snakes lie still in dry grass and bite if disturbed.
+    ItemKind("snake", (150, 160, 60), edible=False, spawn_weight=0.15, habitat="dry", regrows=False,
+             wilt_chance=0.0002, wanders=0.08, flees=0.2, breeds=0.0008, max_count=15, group="animal",
+             bites=10.0, bite_chance=0.04, eats=("cug", "bird egg"), hunger=0.03, carcass="snake meat"),
+    ItemKind("snake meat", (210, 160, 150), energy=20, spawns=False, regrows=False, wilt_chance=0.006,
+             group="meat", cooks_into="roasted cug", rots_into="rotten meat"),
+    # Songbirds flit about and lay eggs beside them.
+    ItemKind("songbird", (240, 110, 170), edible=False, spawn_weight=0.2, regrows=False,
+             wilt_chance=0.0002, wanders=0.6, flees=0.95, breeds=0.002, max_count=40, group="animal",
+             mass=0.3, drops=(("bird egg", 0.002),), seasonal=True, carcass="bird meat",
+             eats=("grass seed", "red berry"), hunger=0.03),
+    ItemKind("bird meat", (225, 130, 120), energy=20, spawns=False, regrows=False, wilt_chance=0.006,
+             group="meat", cooks_into="roasted bird", rots_into="rotten meat"),
+    ItemKind("roasted bird", (180, 110, 60), energy=30, spawns=False, regrows=False,
+             wilt_chance=0.004, group="cooked"),
+    # Fish live in the ponds; a spear or bow struck at the water can take one.
+    ItemKind("fish", (150, 180, 200), energy=35, spawns=False, regrows=False, wilt_chance=0.006,
+             group="meat", cooks_into="cooked fish", rots_into="rotten meat"),
+    ItemKind("cooked fish", (220, 180, 140), energy=45, spawns=False, regrows=False,
+             wilt_chance=0.004, group="cooked"),
+
+    # --- Plants that follow the seasons and the rain ---------------------------
+    ItemKind("berry bush", (140, 40, 70), edible=False, spawn_weight=0.4, habitat="near_water",
+             regrows=False, wilt_chance=0.00005, group="plant", immovable=True, hardness=2,
+             drops=(("red berry", 0.004),), seasonal=True, burn_hours=4, ignites_at=5),
+    ItemKind("rotten apple", (120, 70, 40), energy=5, toxin=2.0, toxin_delay=3, toxin_hours=3,
+             spawns=False, regrows=False, wilt_chance=0.002, group="fruit",
+             grows_into="sapling", grow_days=20),   # the core takes root
+    ItemKind("puffball", (245, 245, 235), energy=15, spawns=False, regrows=False, wilt_chance=0.01,
+             group="mushroom", after_rain=0.0004, cooks_into="roasted mushroom"),
 )
 
 # What striking one thing with another makes, beyond plain breaking: (held, target) -> result.

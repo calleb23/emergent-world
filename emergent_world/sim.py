@@ -237,6 +237,7 @@ class Simulation:
         physics.tick(self)
         physics.grow(self)
         physics.shed(self)
+        physics.nature(self)
         living = self.living
         occupied = np.zeros((self.world.width, self.world.height), dtype=bool)
         for a in living:
@@ -342,6 +343,8 @@ class Simulation:
             return
         if kind.prickly:
             agent.take_damage(kind.prickly, "thorns")
+        if kind.bites:
+            physics.bite(self, agent, kind)
         self.world.take_plant(agent.x, agent.y)
         agent.hands = self.config.items.index(kind) + 1
         self._first(agent, ("picked", kind.color), f"Picked up a {kind.look} for the first time")

@@ -21,6 +21,9 @@ never scripted outcomes (see world/items.py for the properties).
   hard to light. Spilled water soaks a tile.
 - Wind: storms can blow a shelter apart, unless it's lashed with cord or daubed
   with mud. Daubed shelters don't burn.
+- Nature: animals bite people who come too close; mushrooms spring up on soaked
+  ground; rain fills open pots; fruiting follows the seasons; ponds hold fish that
+  a spear or bow can take.
 - Fire: burns a tile's fuel (burnable items, stick piles, shelters), spreads its
   heat to burnable neighbours, is put out by rain, and leaves ash. Lightning in a
   storm can start one. Food left in a fire for a few hours cooks. Anyone standing
@@ -44,6 +47,8 @@ SPARK_HARDNESS = 6        # flint only sparks against something this hard
 SNAP_STRAIN = 0.02        # chance per blow a bond gives, per point of target hardness over bond
 WIND_CHANCE = 0.004       # chance per storm hour that wind tears apart an unreinforced shelter
 LASHED, DAUBED = 1, 2     # shelter reinforcement bits
+FISH_STOCK = 120          # fish the ponds hold when full
+FISH_CHANCE = 0.25        # chance a reaching strike at the water takes a fish (when the ponds are full)
 
 NEIGHBOURS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
@@ -55,6 +60,7 @@ def setup(world):
     world.growing = np.zeros((world.width, world.height), dtype=np.int16)   # hours a seed has lain
     world.wet = np.zeros((world.width, world.height), dtype=np.float32)     # 0 dry .. 1 soaked
     world.reinforced = np.zeros((world.width, world.height), dtype=np.int8)
+    world.fish = float(FISH_STOCK)
 
 
 def burnable(world, config, x, y) -> float:
@@ -155,16 +161,60 @@ def grow(sim) -> None:
 def shed(sim) -> None:
     """Things that drop things (trees: apples, branches) shed them onto open ground beside them."""
     world, config, rng = sim.world, sim.config, sim.rng
+    growth = sim.climate.growth if sim.climate is not None else 1.0
     for item_id, kind in enumerate(config.items, start=1):
         if not kind.drops:
             continue
         spots = np.argwhere(world.plants == item_id)
         for look, chance in kind.drops:
+            if kind.seasonal:
+                chance *= growth if growth >= 0.5 else 0.0   # nothing in winter
             for x, y in spots[rng.random(len(spots)) < chance]:
                 dx, dy = NEIGHBOURS[int(rng.integers(0, 4))]
                 nx, ny = int(x) + dx, int(y) + dy
                 if world.is_walkable(nx, ny) and world.plants[nx, ny] == 0 and not world.fire[nx, ny]:
                     world.plants[nx, ny] = config.item_id(look)
+
+
+def nature(sim) -> None:
+    """One hour of the living world: bites, rain-fed mushrooms and pots, fish breeding."""
+    world, config, rng = sim.world, sim.config, sim.rng
+    world.fish = min(FISH_STOCK, world.fish + 0.02 + 0.002 * world.fish * (1 - world.fish / FISH_STOCK))
+    biters = {i: k for i, k in enumerate(config.items, start=1) if k.bites}
+    if biters:
+        for agent in sim.agents:
+            if not agent.alive:
+                continue
+            x0, y0 = max(0, agent.x - 1), max(0, agent.y - 1)
+            near = world.plants[x0:agent.x + 2, y0:agent.y + 2]
+            for item_id, kind in biters.items():
+                if (near == item_id).any() and rng.random() < kind.bite_chance:
+                    bite(sim, agent, kind)
+                    break
+    raining = wet(sim)
+    soaked = (world.wet > 0.6) & (world.terrain == 0) & (world.plants == 0)
+    for item_id, kind in enumerate(config.items, start=1):
+        if kind.after_rain and soaked.any():
+            sprout = soaked & (rng.random(soaked.shape) < kind.after_rain)
+            world.plants[sprout] = item_id
+            if sprout.any():
+                sim.chronicle(f"After the rain, {kind.look}s sprang up", once=("after rain", kind.look))
+        if raining and kind.holds_water:
+            pots = (world.plants == item_id) & (rng.random(soaked.shape) < 0.1)
+            world.plants[pots] = config.item_id(kind.holds_water)
+    if raining:
+        for agent in sim.agents:
+            held = config.item(agent.hands)
+            if held is not None and held.holds_water and rng.random() < 0.1:
+                agent.hands = config.item_id(held.holds_water)
+                sim._first(agent, ("rain filled",), f"Rain filled the {held.look} they were holding")
+
+
+def bite(sim, agent, kind) -> None:
+    agent.take_damage(kind.bites, "bites")
+    agent.memory.burned(kind.color, 0.6)
+    sim._first(agent, ("bitten", kind.look), f"Bitten by a {kind.look}")
+    sim.chronicle(f"{sim_label(agent)} was the first to be bitten by a {kind.look}", once=("bitten", kind.look))
 
 
 def fire_near(world, x, y, reach: int = 1) -> bool:
@@ -186,6 +236,7 @@ def strike(sim, agent) -> None:
     if target is None and held.reach:
         found = _critter_within(world, config, x, y, held.reach)
         if found is None:
+            _fish(sim, agent, held)
             return
         x, y, distance = found
         target = config.item(int(world.plants[x, y]))
@@ -223,6 +274,19 @@ def strike(sim, agent) -> None:
     sim._first(agent, ("broke", target.look, result), f"{how.capitalize()} with a {held.look}, and got a {result}")
     sim.chronicle(f"{sim_label(agent)} {how} with a {held.look} and made the first {result}",
                   once=("made", result))
+
+
+def _fish(sim, agent, held) -> None:
+    """A spear or bow thrust at the water beside you can take a fish."""
+    world = sim.world
+    if not held.sharp or not world.next_to_liquid(agent.x, agent.y) or world.plants[agent.x, agent.y]:
+        return
+    if sim.rng.random() >= FISH_CHANCE * world.fish / FISH_STOCK:
+        return
+    world.fish -= 1
+    world.plants[agent.x, agent.y] = sim.config.item_id("fish")
+    sim._first(agent, ("fished",), f"Struck at the water with a {held.look} and pulled out a fish")
+    sim.chronicle(f"{sim_label(agent)} speared the first fish", once="fished")
 
 
 def _critter_within(world, config, x, y, reach):

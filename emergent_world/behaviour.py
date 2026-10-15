@@ -29,6 +29,9 @@ def exposed(sim, agent) -> bool:
         return True
     cold_night = climate.is_night and climate.temperature < 6
     from emergent_world.world.physics import fire_near
+    held = sim.config.item(agent.hands)
+    if held is not None and held.warm:
+        return False   # wrapped in a pelt
     return cold_night and not fire_near(sim.world, agent.x, agent.y)   # a fire keeps you warm
 
 

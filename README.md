@@ -75,6 +75,20 @@ outcomes. People can strike what's underfoot with what they hold, or rub them to
   on open ground grow into green plants after a week; eating a blue flower ends sickness.
 - **Stoking**: dropping something burnable into a fire feeds it.
 
+### Nature
+
+- **A food web**: deer graze plants and bolt from people (too big to carry, but a
+  spear or bow brings one down for venison). Wolves hunt deer and cugs and bite anyone
+  who comes too close; their pelt keeps off the cold. Snakes lie in dry grass and bite
+  if disturbed. Songbirds flit about and lay eggs.
+- **Rot**: meat left out rots into rotten meat, which makes you sick. Fallen apples rot,
+  and an apple core left lying takes root as a sapling.
+- **Seasons and rain**: berry bushes fruit in the growing season and not in winter;
+  puffball mushrooms spring up on soaked ground; rain fills open or carried pots.
+- **Fishing**: ponds hold fish. A spear or bow struck at the water can take one, and
+  overfishing empties the ponds for a while.
+- **Warmth**: holding a pelt keeps off a cold night (not the rain).
+
 ### Imitation
 
 People watch each other (`BrainPolicy._imitate`). When someone nearby does

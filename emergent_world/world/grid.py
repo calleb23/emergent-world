@@ -75,6 +75,7 @@ class World:
         # traps a critter stepping onto it becomes.
         self._rot = np.array([0] + [c.item_id(k.rots_into) for k in c.items], dtype=np.int8)
         self._trap = np.array([0] + [c.item_id(k.traps) for k in c.items], dtype=np.int8)
+        self._prey = {i: {c.item_id(look) for look in k.eats} for i, k in enumerate(c.items, start=1) if k.eats}
 
     @staticmethod
     def _fits(habitat: str, zone: int) -> bool:
@@ -133,6 +134,12 @@ class World:
                             continue
                         self.plants[nx, ny] = item_id
                         x, y = nx, ny
+                prey = self._prey.get(item_id)
+                if prey and self.rng.random() < kind.hunger:   # graze or hunt whatever's beside it
+                    for dx, dy in steps:
+                        if self.in_bounds(x + dx, y + dy) and int(self.plants[x + dx, y + dy]) in prey:
+                            self.plants[x + dx, y + dy] = NO_PLANT
+                            break
                 if count < kind.max_count and self.rng.random() < kind.breeds * growth:
                     nests = [(x + dx, y + dy) for dx, dy in steps
                              if self.is_walkable(x + dx, y + dy) and self.plants[x + dx, y + dy] == NO_PLANT]
