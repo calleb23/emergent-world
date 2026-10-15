@@ -142,3 +142,11 @@ def test_seeds_grow_and_trees_shed():
         physics.shed(sim)
     around = {int(sim.world.plants[20 + dx, 20 + dy]) for dx, dy in physics.NEIGHBOURS}
     assert around & {item("apple"), item("fallen branch")}
+
+
+def test_branches_pile_up_into_shelters_like_sticks():
+    sim, a, item = _sim()
+    for _ in range(sim.config.sticks_per_shelter):
+        a.hands = item("fallen branch")
+        sim._act(a, Action.DROP)
+    assert sim.world.shelter[a.x, a.y]

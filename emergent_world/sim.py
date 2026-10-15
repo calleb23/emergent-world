@@ -517,7 +517,9 @@ class Simulation:
             self._first(agent, ("stoked",), f"Fed a {held.look} to a fire; it flared up")
             self.chronicle(f"{label(agent)} fed a fire to keep it going", once="stoked")
             return
-        if held.look == "stick" and self.world.terrain[x, y] == 0:
+        building = held.look == "stick" or (held.group == "wood" and 1.0 <= held.mass <= 2.0
+                                            and not held.immovable)   # branches and poles pile up too
+        if building and self.world.terrain[x, y] == 0:
             agent.hands = 0
             if self.world.add_to_shelter(x, y, self.config.sticks_per_shelter):
                 self.log(agent, "Dropped a stick on the pile, and it became a shelter")
