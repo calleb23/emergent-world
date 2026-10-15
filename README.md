@@ -67,6 +67,8 @@ emergent_world/
   agents/senses.py what agents perceive (batched across all agents)
   agents/brain.py  tiny neural networks, mutation, batched thinking
   agents/policy.py who decides actions: brains, or random as a baseline
+  agents/teacher.py the hand-written teacher behind the instincts
+  instincts.py     records the teacher and trains brains to copy it
   sim.py           tick loop
   stats.py         death log and per-tick stats
   viewer.py        pygame window
