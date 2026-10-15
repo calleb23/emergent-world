@@ -72,7 +72,7 @@ def describe(sim, agent, action) -> str:
               "DROP": "putting something down", "GIVE": "giving something",
               "STRIKE": "striking something", "RUB": "rubbing something",
               "TAKE": "taking something", "HIT": "fighting", "COMFORT": "comforting someone",
-              "CALL": "calling out"}
+              "CALL": "calling out", "CALL_B": "calling out", "CALL_C": "calling out"}
     if name in labels:
         return labels[name]
     if agent.grief:

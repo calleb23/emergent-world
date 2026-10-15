@@ -138,6 +138,7 @@ class Recorder:
         out["discoveries"] = sum(1 for name in DISCOVERIES.values() if out[f"day_{name}"] is not None)
         out["genome_diversity"] = genome_diversity(people)
         out.update(behaviour_metrics(sim))
+        out.update(signal_metrics(sim))
         from emergent_world.agents.genes import GENES
         for g in GENES:
             vals = [a.genes[g] for a in people if a.genes]
@@ -188,6 +189,55 @@ def behaviour_metrics(sim) -> dict:
     out["skill_effects"] = int(sum(effects.values()))
     for name in ("strike", "rub", "drop", "pick_up", "give"):
         out[f"effect_{name}"] = int(effects.get(name, 0))
+    return out
+
+
+def mutual_information(pairs: Counter) -> float:
+    """Bits of information a sound gives about the situation, from (sound, situation) counts."""
+    total = sum(pairs.values())
+    if not total:
+        return 0.0
+    sounds, contexts = Counter(), Counter()
+    for (s, c), n in pairs.items():
+        sounds[s] += n
+        contexts[c] += n
+    mi = 0.0
+    for (s, c), n in pairs.items():
+        p = n / total
+        mi += p * np.log2(p / (sounds[s] / total * contexts[c] / total))
+    return float(mi)
+
+
+def shuffled_mi(pairs: Counter, rng, permutations: int = 200) -> tuple:
+    """The same measure with sounds shuffled against situations: what chance alone
+    gives for this many calls. Returns (mean, 95th percentile)."""
+    sounds = np.array([s for (s, c), n in pairs.items() for _ in range(n)])
+    contexts = [c for (s, c), n in pairs.items() for _ in range(n)]
+    if len(sounds) < 2:
+        return 0.0, 0.0
+    values = []
+    for _ in range(permutations):
+        shuffled = rng.permutation(sounds)
+        values.append(mutual_information(Counter(zip(shuffled.tolist(), contexts))))
+    return float(np.mean(values)), float(np.percentile(values, 95))
+
+
+def signal_metrics(sim, seed: int = 0) -> dict:
+    """Do the three sounds carry meaning, and do listeners act on them?"""
+    pairs = sim.call_log
+    calls = sum(pairs.values())
+    out = {"calls": int(calls)}
+    if calls < 20:
+        return out
+    mi = mutual_information(pairs)
+    chance, chance95 = shuffled_mi(pairs, np.random.default_rng(seed))
+    out["signal_mi_bits"] = round(mi, 5)
+    out["signal_mi_excess"] = round(mi - chance, 5)
+    out["signal_meaningful"] = bool(mi > chance95)
+    resp = sim.call_response
+    heard_moves = sum(resp.values())
+    if heard_moves:
+        out["approach_after_call"] = round(sum(n for (s, toward), n in resp.items() if toward) / heard_moves, 4)
     return out
 
 

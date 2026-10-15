@@ -27,8 +27,10 @@ TRAITS = ("boldness", "sociability", "temper", "kindness")
 #   own feelings: fear, anger, loneliness, joy, grief
 #   nearest person in sight: their fear, anger, joy; my bond with them, kin,
 #     my grudge against them, whether they hold something, whether they're beside me
-#   loudest call heard: direction (dx, dy), loudness, alarm in it
-SOCIAL_SIZE = 5 + 8 + 4
+#   loudest call heard: direction (dx, dy), loudness, alarm in it, and which of
+#     the three sounds it was (one-hot)
+CALL_SOUNDS = 3
+SOCIAL_SIZE = 5 + 8 + 4 + CALL_SOUNDS
 
 
 def random_traits(rng) -> dict:
@@ -127,5 +129,9 @@ def social_inputs(agent, people, config) -> list:
         row += [other.fear, other.anger, other.joy, agent.known.get(other.id, 0.0),
                 1.0 if other.id in agent.kin else 0.0, agent.grudges.get(other.id, 0.0),
                 1.0 if other.hands else 0.0, 1.0 if d <= 1 else 0.0]
-    row += list(agent.heard) if agent.heard is not None else [0.0] * 4
+    if agent.heard is None:
+        row += [0.0] * (4 + CALL_SOUNDS)
+    else:
+        dx, dy, loud, alarm, sound = agent.heard
+        row += [dx, dy, loud, alarm] + [1.0 if k == sound else 0.0 for k in range(CALL_SOUNDS)]
     return row

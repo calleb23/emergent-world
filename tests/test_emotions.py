@@ -52,7 +52,8 @@ def test_calls_are_heard_with_direction_and_alarm():
     b.x = a.x + 6
     a.fear = 0.9
     sim._act(a, Action.CALL)
-    dx, dy, loud, alarm = b.heard_next
+    dx, dy, loud, alarm, sound = b.heard_next
+    assert sound == 0
     assert dx < 0 and loud > 0 and alarm == 0.9
 
 
@@ -76,3 +77,25 @@ def test_people_are_reluctant_to_hit_family():
     a.kin.add(b.id)
     family = BrainPolicy.social_penalty([a], sim.by_id, sim.config)[0, Action.HIT]
     assert family > stranger > 0
+
+
+def test_three_distinct_sounds_are_heard_as_such():
+    sim, a, b = _pair()
+    b.x = a.x + 4
+    sim._act(a, Action.CALL_C)
+    assert b.heard_next[4] == 2
+    b.heard, b.heard_next = b.heard_next, None
+    row = emotions.social_inputs(b, [a, b], sim.config)
+    assert row[-3:] == [0.0, 0.0, 1.0]
+
+
+def test_signal_meaning_is_measured_against_chance():
+    from collections import Counter
+    import numpy as np
+    from emergent_world.metrics import mutual_information, shuffled_mi
+    meaningful = Counter({(0, "danger"): 50, (1, "food"): 50, (2, "water"): 50})
+    noise = Counter({(s, c): 17 for s in range(3) for c in ("danger", "food", "water")})
+    assert mutual_information(meaningful) > 1.5
+    assert mutual_information(noise) < 0.01
+    _, chance95 = shuffled_mi(meaningful, np.random.default_rng(0))
+    assert mutual_information(meaningful) > chance95

@@ -112,6 +112,7 @@ class Config:
     loneliness_rate: float = 0.006  # per hour alone, for an average temperament
     lonely_pull: float = 1.0        # lonely people are drawn toward people they can see
     hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
+    call_carries_fear: bool = True  # a cry's tone gives away the caller's fear
     harm_aversion: float = 2.5      # innate reluctance to hit or rob, stronger toward the loved
     touch_reward: float = 0.4       # being comforted feels good, and so does comforting
     gift_reward: float = 0.3        # being given something feels good

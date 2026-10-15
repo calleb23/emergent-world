@@ -10,7 +10,7 @@ from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, 
 
 MOVE_ACTIONS = (Action.NORTH, Action.SOUTH, Action.EAST, Action.WEST, Action.REST)
 SKILL_ACTIONS = (Action.STRIKE, Action.RUB, Action.PICK_UP, Action.DROP, Action.GIVE,
-                 Action.COMFORT, Action.CALL)
+                 Action.COMFORT, Action.CALL, Action.CALL_B, Action.CALL_C)
 PEOPLE_ACTIONS = (Action.TAKE, Action.HIT, Action.COMFORT)
 
 

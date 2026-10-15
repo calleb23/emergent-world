@@ -27,6 +27,7 @@ class Simulation:
         self.climate = Climate(self.rng) if self.config.climate else None
         self.world.climate = self.climate   # senses read light and weather through the world
         self.biter_ids = [i for i, k in enumerate(self.config.items, start=1) if k.bites]
+        self.safe_food_ids = [i for i, k in enumerate(self.config.items, start=1) if k.edible and not k.harmful]
         if self.config.policy == "random":
             self.policy = RandomPolicy(self.rng)
         else:
@@ -46,6 +47,8 @@ class Simulation:
         self.first_ticks: dict = {}   # world firsts (chronicle keys) -> tick they happened
         self.counts = Counter()        # social events: gifts, thefts, hits, comforts, calls, transmissions
         self.action_counts = Counter()  # action id -> times chosen
+        self.call_log = Counter()       # (sound, caller's situation) -> calls, for measuring meaning
+        self.call_response = Counter()  # (sound, moved toward it?) -> moves by people who heard it
         self._oldest_death = 0
         self._deepest_generation = 0
         self._most_alive = 0
@@ -257,6 +260,10 @@ class Simulation:
         actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach, self.by_id)
         for agent, action in zip(awake, actions):
             self.action_counts[int(action)] += 1
+            if agent.heard is not None and action in MOVES:
+                mx, my = MOVES[action]
+                sound = agent.heard[4]
+                self.call_response[(sound, mx * agent.heard[0] + my * agent.heard[1] > 0)] += 1
             self._act(agent, action)
             behaviour.after_action(self, agent)
             agent.activity = behaviour.describe(self, agent, action)
@@ -301,8 +308,8 @@ class Simulation:
                 {Action.TAKE: self._take, Action.HIT: self._hit, Action.COMFORT: self._comfort}[action](agent, other)
                 if action == Action.COMFORT:
                     self._copied_success(agent, action)
-        elif action == Action.CALL:
-            self._call(agent)
+        elif action in (Action.CALL, Action.CALL_B, Action.CALL_C):
+            self._call(agent, int(action) - int(Action.CALL))
         elif action in (Action.PICK_UP, Action.DROP, Action.GIVE, Action.STRIKE, Action.RUB):
             x, y = agent.x, agent.y
             before = (agent.hands, int(self.world.plants[x, y]), int(self.world.fire[x, y] > 0))
@@ -406,9 +413,27 @@ class Simulation:
         self.chronicle(f"{label(agent)} comforted {label(other)}" + (", who was upset" if upset else ""),
                        once=("comfort", upset))
 
-    def _call(self, agent: Agent):
-        """Cry out. Everyone within earshot hears where it came from, and how afraid it sounded."""
+    def call_context(self, agent: Agent) -> str:
+        """What a caller's situation is, for measuring whether calls mean anything.
+        Never shown to agents."""
+        w, x, y = self.world, agent.x, agent.y
+        x0, y0 = max(0, x - 3), max(0, y - 3)
+        near = w.plants[x0:x + 4, y0:y + 4]
+        if (self.biter_ids and np.isin(near, self.biter_ids).any()) or w.fire[x0:x + 4, y0:y + 4].any() \
+                or agent.fear > 0.5:
+            return "danger"
+        if near.any() and np.isin(near, self.safe_food_ids).any():
+            return "food"
+        if w.shore_distance[x, y] <= 3:
+            return "water"
+        return "other"
+
+    def _call(self, agent: Agent, sound: int = 0):
+        """Cry out. Everyone within earshot hears where it came from, which sound it
+        was, and (if calls carry fear) how afraid it sounded."""
         reach = self.config.hearing_range
+        self.call_log[(sound, self.call_context(agent))] += 1
+        alarm = agent.fear if self.config.call_carries_fear else 0.0
         for other in self.agents:
             if other is agent or not other.alive:
                 continue
@@ -418,7 +443,7 @@ class Simulation:
                 continue
             loud = 1.0 - d / (reach + 1)
             if other.heard_next is None or loud > other.heard_next[2]:
-                other.heard_next = (dx / reach, dy / reach, loud, agent.fear)
+                other.heard_next = (dx / reach, dy / reach, loud, alarm, sound)
         self.counts["call"] += 1
         self._first(agent, ("called",), "Called out")
 

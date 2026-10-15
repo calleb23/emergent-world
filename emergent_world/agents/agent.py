@@ -23,6 +23,8 @@ class Action(IntEnum):
     HIT = 13      # hit the person next to you (harder with something hard in hand)
     COMFORT = 14  # hold or groom the person next to you
     CALL = 15     # cry out: heard far off, and the cry carries how afraid you are
+    CALL_B = 16   # a second, different-sounding cry
+    CALL_C = 17   # and a third: what (if anything) each comes to mean is up to them
 
 
 MOVES = {
@@ -98,7 +100,7 @@ class Agent:
     traits: dict = field(default_factory=dict)   # boldness, sociability, temper, kindness
     genes: dict = field(default_factory=dict)    # learning genes: see agents/genes.py
     grudges: dict = field(default_factory=dict)  # id -> 0..1: people who wronged them
-    heard: tuple | None = None       # loudest call heard last hour: (dx, dy, loudness, alarm)
+    heard: tuple | None = None       # loudest call heard last hour: (dx, dy, loudness, alarm, sound)
     heard_next: tuple | None = None  # calls arriving this hour, heard next hour
     last_attacker: int = -1          # who last hit them
 
