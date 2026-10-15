@@ -420,10 +420,28 @@ Experienced agents eat poison about half as often as naive ones (naive agents lo
 partly because poison builds up when others avoid it). It's a partial pass: avoidance
 isn't complete.
 
-## Next steps
+## Status and open questions
 
-- Steering away from foods in sight cut poison deaths by 23% (seed 0, 4 years): agents
-  who got sick now eat poison in 5.2% of meals (was 7.8%), those who watched a relative
-  die 4.0% (was 7.6%).
-- Prehistory still uses fast breeding (about eight children per five-week life); the
-  founders haven't evolved under the small world's slower breeding.
+Measured, with results in `docs/experiments/`:
+
+- The world holds 10-30 people for twenty years and longer, with family trees 5-13
+  generations deep, as long as strangers keep arriving (one every 30 days).
+- Thirst is down to about 12% of deaths. Starvation (about half of deaths) is now
+  mostly a winter famine: food falls to about a third of its summer level.
+- Evolution tunes learning: the exploration gene rises under selection and not in the
+  drift control. Learning and imitation rates show no selection yet.
+- Imitation carries 100-250 skills between people per world; its effect on survival
+  isn't established. Emotions and lifetime learning clearly help survival.
+- Call sounds carry a sliver of information about the caller's situation (above chance,
+  about 0.001-0.01 bits) and listeners don't respond to them: no real signalling yet.
+
+Open design questions:
+
+- **A closed world.** Without strangers, populations decline and half collapse within six
+  years: births don't keep up and brains drift. More children per lifetime, a milder
+  winter, or both would change that. Which (if any) is a choice about what this world
+  should be.
+- **Winter.** The famine is real pressure that evolution and culture could answer (stores,
+  cooking, moving), but nothing has yet. Keep it as harsh?
+- **Signalling.** Meaningful calls probably need listeners to gain from responding within
+  the time their learning can link cause and effect. Worth designing for, or wait?
