@@ -45,7 +45,6 @@ BURN_DAMAGE = 8.0         # health lost per hour standing in fire
 SPARK_HEAT = 3.0          # heat flint sparks throw onto each burnable neighbour
 SPARK_HARDNESS = 6        # flint only sparks against something this hard
 SNAP_STRAIN = 0.02        # chance per blow a bond gives, per point of target hardness over bond
-WIND_CHANCE = 0.004       # chance per storm hour that wind tears apart an unreinforced shelter
 LASHED, DAUBED = 1, 2     # shelter reinforcement bits
 FISH_STOCK = 120          # fish the ponds hold when full
 FISH_CHANCE = 0.25        # chance a reaching strike at the water takes a fish (when the ponds are full)
@@ -401,7 +400,7 @@ def weather(sim) -> None:
         world.wet *= 0.85 if climate.light > 0.5 else 0.97
     if climate.weather == "storm":
         for x, y in np.argwhere(world.shelter & (world.reinforced & LASHED == 0)):
-            chance = WIND_CHANCE * (0.5 if world.reinforced[x, y] & DAUBED else 1.0)
+            chance = sim.config.storm_wind_chance * (0.5 if world.reinforced[x, y] & DAUBED else 1.0)
             if rng.random() < chance:
                 world.shelter[x, y] = False
                 world.piles[x, y] //= 2

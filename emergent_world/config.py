@@ -67,6 +67,7 @@ class Config:
     restless_when_needy: bool = True   # too thirsty or hungry to fall asleep (until exhausted)
     remember_seen_water: bool = True   # people remember water they've seen, not just drunk at
     orphans_follow_kin: bool = True    # a child with no parent left keeps close to kin or a friend
+    storm_wind_chance: float = 0.004   # per storm hour, chance wind tears apart an unreinforced shelter
     sleep_drain: float = 0.6        # hunger and thirst slow to this share while asleep
     sleep_healing: float = 2.0      # healing runs this many times faster while asleep
     exhaustion_damage: float = 0.5  # health lost per hour while awake and exhausted
