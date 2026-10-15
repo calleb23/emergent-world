@@ -125,11 +125,53 @@ seeing what they saw, and leans toward the same action in the same situation. Th
 more if it visibly paid off, and away from it if it plainly hurt. Skills with no immediate payoff (striking,
 rubbing, carrying, giving) are still copied a little. Relatives and friends are watched
 most, and children copy twice as much. The history notes when a skill first passes
-from one person to another. In 1.5-year runs over four seeds, imitation raised the
-average survivors from 8 to 15.
+from one person to another. An early 4-seed test suggested imitation raised survivors
+from 8 to 15; the 8-seed ablation (`docs/experiments/2026-10-15-ablations.md`) didn't
+confirm a survival effect, though imitation carries about 65 skills between people per
+world and slightly raises discoveries.
 
 Newcomers who wander in carry a varied copy of a living adult's brain, as it is now,
 with everything it has learned, so the world's know-how isn't reset by strangers.
+
+### Learning genes
+
+How each person learns is itself inherited (`agents/genes.py`): their **learning
+rate**, **imitation rate** and **exploration** (how often they try something at random).
+A child gets the geometric mean of its parents' genes with a little variation, and
+founders vary widely, so evolution can tune learning itself (the Baldwin effect, after
+Hinton and Nowlan, 1987). With `learning_genes=False` the genes are inherited and
+varied the same way but have no effect: the drift control that shows whether real
+selection is at work. Metrics report each gene's shift from its starting value.
+
+### Calls and their meaning
+
+There are three different-sounding calls (`CALL`, `CALL_B`, `CALL_C`). Listeners hear
+which sound it was, where it came from, how loud it was, and (with `call_carries_fear`)
+how afraid the caller sounded. What each sound comes to mean, if anything, is up to
+them. To find out, every call is logged with the caller's situation (danger close by,
+food beside them, water beside them, or none of these, which agents never see), and
+the metrics report the **mutual information** between sound and situation against a
+shuffled baseline, plus how often listeners move toward a call.
+
+### Staying alive: what the measurements found
+
+Measured by diagnosing deaths, not guessed:
+
+- Half of thirst and starvation deaths happened asleep: desperate people woke, then
+  fell straight back asleep each night hour. Now people too thirsty or hungry can't
+  fall asleep, unless they collapse from exhaustion (`restless_when_needy`).
+- The median thirst death was 3 tiles from water, and many had never drunk anywhere
+  they remembered. People now remember water they've seen (`remember_seen_water`),
+  the strongest single fix: without it, 5 fewer people alive on average.
+- Most children who died had lost their parents. Orphans now keep close to their
+  nearest grown relative, or else the grown-up they're closest to (`orphans_follow_kin`).
+- People starved beside plenty of safe food: hungry people standing on food ate it
+  only 14-30% of the time, held back by staples they'd wrongly blamed for a sickness
+  (wariness fades over months) and pulled away by the urge to follow or seek company.
+  Now hunger is an urge to bite whatever's underfoot that isn't known non-food
+  (`hunger_urge`), hunger weakens the follow and company pulls, and watching kin eat a
+  food eases wariness of it (`social_reassurance`). Hungry people on food now eat it
+  53-80% of the time.
 
 ### Tension and adhesion
 
