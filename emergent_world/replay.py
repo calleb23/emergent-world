@@ -20,12 +20,18 @@ KEYFRAME_DAYS = 10     # a full plant map every this many days; changes in betwe
 WEATHER = ("clear", "cloudy", "rain", "storm", "fog", "snow")
 
 
-def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
-    if Path(founders).exists():
-        config.founders_path = founders
-    sim = Simulation(config, seed=seed)
-    sim.follow(max(sim.agents, key=lambda a: a.age, default=None))
+def record(config: Config, seed: int, run_years: float, founders: str, sim: Simulation | None = None) -> dict:
+    """Record `run_years` of a new world, or of `sim` if given (a world already
+    running, so the end of a long run can be watched)."""
+    if sim is None:
+        if Path(founders).exists():
+            config.founders_path = founders
+        sim = Simulation(config, seed=seed)
+    config = sim.config
+    if sim.followed_id is None or sim.followed_id not in sim.by_id:
+        sim.follow(max(sim.agents, key=lambda a: a.age, default=None))
     world = sim.world
+    start = sim.tick_count
 
     known = {}            # every agent that ever lived, by id
     frames = []           # [followed id, weather index, temperature, agent rows]
@@ -42,15 +48,15 @@ def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
         known[a.id] = a
     keyframes[0] = plant_string(world)
     snapshot()
-    total = int(run_years * TICKS_PER_YEAR)
+    total = start + int(run_years * TICKS_PER_YEAR)
     while sim.tick_count < total and sim.living:
         sim.tick()
         for a in sim.agents:
             known.setdefault(a.id, a)
-        if sim.tick_count % FRAME_EVERY == 0:
+        if (sim.tick_count - start) % FRAME_EVERY == 0:
             snapshot()
-        if sim.tick_count % TICKS_PER_DAY == 0:
-            day = sim.tick_count // TICKS_PER_DAY
+        if (sim.tick_count - start) % TICKS_PER_DAY == 0:
+            day = (sim.tick_count - start) // TICKS_PER_DAY
             now = world.plants.T.flatten()
             if day % KEYFRAME_DAYS == 0:
                 keyframes[day] = plant_string(world)
@@ -62,6 +68,7 @@ def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
 
     data = static_info(sim, "replay")
     data.update({
+        "startTick": start,
         "frameEvery": FRAME_EVERY,
         "keyframeDays": KEYFRAME_DAYS,
         "weatherNames": WEATHER,

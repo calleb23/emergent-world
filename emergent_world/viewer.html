@@ -233,10 +233,10 @@ const DATA = /*VIEWER_DATA*/null;
     return plants;
   }
   function replayState(i) {
-    const f = frames[i], t = i * DATA.frameEvery;
+    const f = frames[i], since = i * DATA.frameEvery, t = (DATA.startTick || 0) + since;
     if (auto && f[0] >= 0) followed = f[0];
     return { tick: t, weather: DATA.weatherNames[f[1]], temp: f[2], season: season(t),
-             plants: plantsOn(Math.floor(t / TPD)), agents: parseAgents(f[3]),
+             plants: plantsOn(Math.floor(since / TPD)), agents: parseAgents(f[3]),
              followed, person: DATA.people[followed] };
   }
 
@@ -519,7 +519,8 @@ const DATA = /*VIEWER_DATA*/null;
     scrub.max = frames.length - 1;
     scrub.addEventListener("input", () => goTo(Number(scrub.value)));
     const years = (frames.length * DATA.frameEvery / TPD / 365).toFixed(1);
-    el("sub").textContent = `A recorded run: seed ${DATA.seed}, ${years} years, lives of about ${DATA.lifespanYears} years. Click anyone to follow their life.`;
+    const from = DATA.startTick ? `, starting in year ${Math.floor(DATA.startTick / TPD / 365) + 1}` : "";
+    el("sub").textContent = `A recorded run: seed ${DATA.seed}, ${years} years${from}, lives of about ${DATA.lifespanYears} years. Click anyone to follow their life.`;
     goTo(0);
     let last = performance.now(), carry = 0;
     const loop = now => {

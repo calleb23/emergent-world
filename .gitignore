@@ -4,3 +4,5 @@ __pycache__/
 runs/
 .pytest_cache/
 replay.html
+century.json
+century_replay.html
