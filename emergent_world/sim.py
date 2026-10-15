@@ -710,10 +710,10 @@ class Simulation:
         rested, or early if thirst, hunger or sickness gets bad; pushed too far,
         they collapse wherever they are."""
         c, climate = self.config, self.climate
+        urgent = (agent.water < 0.15 * c.max_water or agent.energy < 0.10 * c.max_energy
+                  or any(s.felt for s in agent.sicknesses))
         if agent.asleep:
             agent.fatigue = max(0.0, agent.fatigue - c.rest_rate)
-            urgent = (agent.water < 0.15 * c.max_water or agent.energy < 0.10 * c.max_energy
-                      or any(s.felt for s in agent.sicknesses))
             # Sleep lasts until dawn once rested; nobody gets up in the dark for no reason.
             rested = not climate.is_night and agent.fatigue < c.wake_threshold
             if urgent or rested:
@@ -726,7 +726,8 @@ class Simulation:
             if agent.fatigue >= 1.0:
                 agent.asleep = True
                 self.log(agent, "Collapsed from exhaustion")
-            elif climate.is_night and agent.fatigue >= c.sleep_threshold:
+            elif climate.is_night and agent.fatigue >= c.sleep_threshold and not (
+                    c.restless_when_needy and urgent):
                 agent.asleep = True
         weather = climate.weather
         if weather in ("storm", "snow") and ("weather", weather) not in agent.firsts:

@@ -64,6 +64,9 @@ class Config:
     rest_rate: float = 0.12         # tiredness lost per hour asleep (about 8 hours of sleep)
     sleep_threshold: float = 0.6    # tired enough to fall asleep once it's dark
     wake_threshold: float = 0.4     # rested enough to get up once it's light
+    restless_when_needy: bool = True   # too thirsty or hungry to fall asleep (until exhausted)
+    remember_seen_water: bool = True   # people remember water they've seen, not just drunk at
+    orphans_follow_kin: bool = True    # a child with no parent left keeps close to kin or a friend
     sleep_drain: float = 0.6        # hunger and thirst slow to this share while asleep
     sleep_healing: float = 2.0      # healing runs this many times faster while asleep
     exhaustion_damage: float = 0.5  # health lost per hour while awake and exhausted

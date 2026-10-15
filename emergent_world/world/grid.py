@@ -40,6 +40,7 @@ class World:
         physics.setup(self)   # fire, heat and cooking layers
 
         self._make_lakes()
+        self._make_shores()
         self._make_habitats()
         self._seed_plants()
 
@@ -51,6 +52,28 @@ class World:
             cy = self.rng.integers(0, self.height)
             radius = self.rng.integers(lo, hi + 1)
             self.terrain[(xs - cx) ** 2 + (ys - cy) ** 2 <= radius ** 2] = WATER
+
+    def _make_shores(self):
+        """For every tile, the nearest grass tile beside water and how far it is
+        (steps over grass), so people can remember water they've only seen."""
+        from collections import deque
+        self.shore_distance = np.full((self.width, self.height), 10**6, dtype=np.int32)
+        self.nearest_shore = np.full((self.width, self.height, 2), -1, dtype=np.int32)
+        queue = deque()
+        for x in range(self.width):
+            for y in range(self.height):
+                if self.terrain[x, y] == GRASS and self.next_to_liquid(x, y):
+                    self.shore_distance[x, y] = 0
+                    self.nearest_shore[x, y] = (x, y)
+                    queue.append((x, y))
+        while queue:
+            x, y = queue.popleft()
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if self.is_walkable(nx, ny) and self.shore_distance[nx, ny] > self.shore_distance[x, y] + 1:
+                    self.shore_distance[nx, ny] = self.shore_distance[x, y] + 1
+                    self.nearest_shore[nx, ny] = self.nearest_shore[x, y]
+                    queue.append((nx, ny))
 
     def _make_habitats(self):
         """Sort land into damp (near water), dry (far from water) and in between."""

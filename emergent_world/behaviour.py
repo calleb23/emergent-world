@@ -56,6 +56,9 @@ def after_action(sim, agent) -> None:
     spot = sim.world.shelter_near(agent.x, agent.y, 1)
     if spot is not None:
         agent.memory.shelter_at = spot
+    world = sim.world
+    if sim.config.remember_seen_water and world.shore_distance[agent.x, agent.y] <= sim.vision_reach:
+        agent.memory.water_at = tuple(int(v) for v in world.nearest_shore[agent.x, agent.y])
     update_boredom(sim, agent)
 
 

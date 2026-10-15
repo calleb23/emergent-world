@@ -187,7 +187,10 @@ class BrainPolicy:
         rays = range(len(RAY_DIRECTIONS))
         for i, agent in enumerate(agents):
             if agent.age < config.maturity_age:
-                parent = lookup.get(agent.parent_id) or lookup.get(agent.other_parent_id)
+                parent = next((p for p in (lookup.get(agent.parent_id), lookup.get(agent.other_parent_id))
+                               if p is not None and p.alive), None)
+                if parent is None and config.orphans_follow_kin:
+                    parent = cls._guardian(agent, lookup, config)
                 if parent is not None and parent.alive:
                     dx, dy = parent.x - agent.x, parent.y - agent.y
                     if max(abs(dx), abs(dy)) > 2:
@@ -209,6 +212,21 @@ class BrainPolicy:
                         for m in cls._toward(tx - agent.x, ty - agent.y):
                             pull[i, m] += config.homing_pull * food_need
         return pull
+
+    @staticmethod
+    def _guardian(child, lookup: dict, config):
+        """For an orphan: the nearest living grown relative, or else the grown-up
+        they're closest to."""
+        best, best_score = None, None
+        for other_id in set(child.kin) | set(child.known):
+            other = lookup.get(other_id)
+            if other is None or not other.alive or other.age < config.maturity_age:
+                continue
+            score = (2.0 if other_id in child.kin else 0.0) + child.known.get(other_id, 0.0) \
+                - 0.02 * max(abs(other.x - child.x), abs(other.y - child.y))
+            if best_score is None or score > best_score:
+                best, best_score = other, score
+        return best
 
     @staticmethod
     def company_pull(agents: list, inputs: np.ndarray, config) -> np.ndarray:
