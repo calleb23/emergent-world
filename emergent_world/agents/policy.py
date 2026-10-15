@@ -3,7 +3,7 @@
 import numpy as np
 
 from emergent_world.agents.agent import Action
-from emergent_world.agents.brain import OUTPUT_SIZE, think
+from emergent_world.agents.brain import OUTPUT_SIZE, learn, think
 from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, sense_all
 
 
@@ -46,9 +46,27 @@ class BrainPolicy:
         penalties[:, Action.EAT] -= trust_eat
         penalties[:, :4] -= trust_steer
         penalties[:, :4] -= self.place_pull(agents, inputs, config, lookup or {})
+        details = {}
         actions = think([a.brain for a in agents], inputs, self.rng,
-                        config.action_selection, config.exploration, penalties)
+                        config.action_selection, config.exploration, penalties, details)
+        if config.learning:
+            self._learn(agents, details, actions, config)
         return [Action(int(a)) for a in actions]
+
+    @staticmethod
+    def _learn(agents: list, details: dict, actions, config):
+        """Each agent learns from how its last choice turned out: the reward felt
+        since then, plus how good things look now, against what it expected."""
+        hidden, values = details["hidden"], details["values"]
+        for i, agent in enumerate(agents):
+            last = agent.last_choice
+            if last is not None:
+                prev_hidden, prev_action, prev_value = last
+                error = agent.reward + config.discount * float(values[i].max()) - prev_value
+                learn(agent.brain, prev_hidden, prev_action, error, config.learn_rate)
+            agent.reward = 0.0
+            a = int(actions[i])
+            agent.last_choice = (hidden[i].copy(), a, float(values[i, a]))
 
     @staticmethod
     def _toward(dx: int, dy: int) -> list:

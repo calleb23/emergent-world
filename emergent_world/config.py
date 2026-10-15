@@ -81,11 +81,28 @@ class Config:
     # new families to pair with. 0 = nobody ever arrives.
     newcomer_every_days: float = 30.0
 
+    # The world's mechanics for things people might do (see behaviour.py)
+    sticks_per_shelter: int = 4     # sticks dropped on one spot that make a shelter
+    exposure_damage: float = 0.25   # health lost per hour caught out in bad weather or a cold night
+    exposure_hunger: float = 1.3    # hunger multiplier while exposed (keeping warm)
+    boredom_window: int = 48        # hours of positions that count toward boredom
+    boredom_rise: float = 0.02      # boredom added per hour while lingering
+    boredom_ease: float = 0.01      # boredom eased per hour while covering new ground
+
     # Social memory: who people know, and how close they are
     company_range: int = 3          # tiles: near enough to count as spending time together
     bond_per_hour: float = 0.004    # bond gained per waking hour spent near someone
     bond_fade: float = 0.995        # daily multiplier; bonds fade without contact
     close_bond: float = 0.5         # bond at which two people count as close
+
+    # Learning within a lifetime: brains drift toward actions that felt good
+    learning: bool = True
+    learn_rate: float = 0.01
+    discount: float = 0.95          # how much the next hour's prospects count against the reward now
+    pain_weight: float = 0.05       # bad feeling per point of health lost
+    exposure_weight: float = 0.05   # bad feeling per hour caught out in the weather
+    boredom_weight: float = 0.03    # bad feeling per hour, times boredom
+    novelty_reward: float = 0.05    # good feeling for setting foot somewhere not seen lately
 
     # Senses and brain
     policy: str = "brain"           # "brain" or "random" (a baseline to compare against)

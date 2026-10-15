@@ -19,10 +19,14 @@ GRASS_COLOR = (34, 52, 30)
 #   ground layer: the first water it reaches (red, green, blue, closeness)
 #   object layer: the first plant or agent it reaches (red, green, blue, closeness)
 # Then underfoot RGB, touching liquid, energy, water, health, pain.
+# Then the feelings and the hands: what's held (RGB), boredom, cold and wet,
+# light, at a shelter, and how big any stick pile underfoot is.
 RAY_SIZE = 8
-INPUT_SIZE = len(RAY_DIRECTIONS) * RAY_SIZE + 3 + 1 + 4
 UNDERFOOT = len(RAY_DIRECTIONS) * RAY_SIZE
 TOUCH_LIQUID = UNDERFOOT + 3
+HANDS = TOUCH_LIQUID + 5
+BOREDOM, EXPOSED, LIGHT, AT_SHELTER, PILE = HANDS + 3, HANDS + 4, HANDS + 5, HANDS + 6, HANDS + 7
+INPUT_SIZE = PILE + 1
 
 
 def _norm(color) -> tuple:
@@ -98,6 +102,8 @@ def sense_all(agents: list, world, config, reach: int | None = None) -> np.ndarr
     inputs[:, TOUCH_LIQUID + 1] = [a.energy / config.max_energy for a in agents]
     inputs[:, TOUCH_LIQUID + 2] = [a.water / config.max_water for a in agents]
     inputs[:, TOUCH_LIQUID + 3] = [a.health / config.max_health for a in agents]
+    for k, a in enumerate(agents):
+        inputs[k, HANDS:HANDS + 8] = _feelings(a, world, config)
     inputs[:, TOUCH_LIQUID + 4] = [1.0 if any(s.delay == 0 for s in a.sicknesses) else 0.0
                                   for a in agents]
     return inputs
@@ -142,4 +148,21 @@ def sense(agent, world, occupied: np.ndarray, config) -> np.ndarray:
     inputs[i + 1] = agent.water / config.max_water
     inputs[i + 2] = agent.health / config.max_health
     inputs[i + 3] = 1.0 if any(s.delay == 0 for s in agent.sicknesses) else 0.0
+    inputs[HANDS:HANDS + 8] = _feelings(agent, world, config)
     return inputs
+
+
+def _feelings(agent, world, config) -> list:
+    """What's in the hands, and what the body feels: boredom, cold and wet, light,
+    being at a shelter, and the size of any stick pile underfoot."""
+    held = config.item(agent.hands)
+    hands = _norm(held.color) if held is not None else (0.0, 0.0, 0.0)
+    climate = getattr(world, "climate", None)
+    light = climate.light if climate is not None else 1.0
+    sheltered = world.shelter_near(agent.x, agent.y, 1) is not None
+    cold_wet = 0.0
+    if climate is not None and not sheltered:
+        bad = climate.weather in ("rain", "storm", "snow") or (climate.is_night and climate.temperature < 6)
+        cold_wet = 1.0 if bad else 0.0
+    pile = min(1.0, world.piles[agent.x, agent.y] / config.sticks_per_shelter)
+    return [*hands, agent.boredom, cold_wet, light, 1.0 if sheltered else 0.0, pile]

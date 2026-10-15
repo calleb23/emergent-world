@@ -32,9 +32,10 @@ def save_founders(brains: list, path: Path, generations: int):
 
 def load_founders(path) -> list:
     data = np.load(path)
-    if data["w1"].shape[1:] != (INPUT_SIZE, HIDDEN_SIZE) or data["w2"].shape[1:] != (HIDDEN_SIZE, OUTPUT_SIZE):
+    if data["w1"].shape[1] > INPUT_SIZE or data["w2"].shape[1] != HIDDEN_SIZE \
+            or data["w2"].shape[2] > OUTPUT_SIZE:
         raise ValueError(f"{path} doesn't match the current brain shape; rerun prehistory.")
-    return [Brain(w1, b1, w2, b2) for w1, b1, w2, b2
+    return [Brain(w1, b1, w2, b2).fitted() for w1, b1, w2, b2
             in zip(data["w1"], data["b1"], data["w2"], data["b2"])]
 
 
@@ -59,7 +60,7 @@ def main():
     args = parser.parse_args()
 
     sim = run_prehistory(args.ticks, args.seed, args.instincts, progress_every=10_000)
-    founders = [a.brain for a in sim.living]
+    founders = [a.genome for a in sim.living]
     generations = max(a.generation for a in sim.living)
     save_founders(founders, Path(args.out), generations)
     print(f"Saved {len(founders)} founders (up to generation {generations}) to {args.out}")

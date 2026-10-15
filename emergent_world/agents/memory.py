@@ -33,6 +33,7 @@ class FoodMemory:
     useless: set = field(default_factory=set)         # colors known not to be food at all
     water_at: tuple | None = None                     # (x, y) where water was last found
     food_at: tuple | None = None                      # (x, y) of the last good meal
+    shelter_at: tuple | None = None                   # (x, y) of a shelter they know
 
     def level(self, color) -> float:
         return self.aversion.get(color, 0.0)

@@ -13,6 +13,7 @@ from emergent_world.agents.senses import INPUT_SIZE
 
 HIDDEN_SIZE = 16
 OUTPUT_SIZE = len(Action)
+NEW_ACTION_BIAS = -3.0   # actions added after a brain was made start out unlikely
 
 
 @dataclass
@@ -42,6 +43,25 @@ class Brain:
             return (a + changed * rng.normal(0, scale, a.shape)).astype(np.float32)
         return Brain(jitter(self.w1), jitter(self.b1), jitter(self.w2), jitter(self.b2))
 
+    def copy(self) -> "Brain":
+        return Brain(self.w1.copy(), self.b1.copy(), self.w2.copy(), self.b2.copy())
+
+    def fitted(self) -> "Brain":
+        """This brain grown to the current senses and actions, if it was made for
+        fewer. New senses start with no influence; new actions start unlikely
+        (only tried by exploration) until learning or evolution finds a use."""
+        n_in, n_hidden = self.w1.shape
+        n_out = self.w2.shape[1]
+        if n_in == INPUT_SIZE and n_out == OUTPUT_SIZE:
+            return self
+        w1 = np.zeros((INPUT_SIZE, n_hidden), dtype=np.float32)
+        w1[:n_in] = self.w1
+        w2 = np.zeros((n_hidden, OUTPUT_SIZE), dtype=np.float32)
+        w2[:, :n_out] = self.w2
+        b2 = np.full(OUTPUT_SIZE, NEW_ACTION_BIAS, dtype=np.float32)
+        b2[:n_out] = self.b2
+        return Brain(w1, self.b1.copy(), w2, b2)
+
     @property
     def parameter_count(self) -> int:
         return self.w1.size + self.b1.size + self.w2.size + self.b2.size
@@ -49,7 +69,7 @@ class Brain:
 
 def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
           selection: str = "argmax", exploration: float = 0.1,
-          penalties: np.ndarray | None = None) -> np.ndarray:
+          penalties: np.ndarray | None = None, details: dict | None = None) -> np.ndarray:
     """Run every brain at once. inputs: (agents, INPUT_SIZE). Returns action ids.
 
     "argmax" takes each brain's top action, with a small chance of a random one
@@ -68,6 +88,8 @@ def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
 
     hidden = np.tanh(np.einsum("ni,nih->nh", inputs, w1) + b1)
     logits = np.einsum("nh,nho->no", hidden, w2) + b2
+    if details is not None:
+        details["hidden"], details["values"] = hidden, logits.copy()
     if penalties is not None:
         logits -= penalties
 
@@ -89,3 +111,11 @@ def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
     cumulative = probs.cumsum(axis=1)
     draws = rng.random((len(brains), 1))
     return np.minimum((draws > cumulative).sum(axis=1), OUTPUT_SIZE - 1)
+
+
+def learn(brain: Brain, hidden: np.ndarray, action: int, error: float, rate: float):
+    """Nudge the brain's value for the action it took toward what happened next
+    (temporal-difference learning on the last layer)."""
+    error = float(np.clip(error, -5.0, 5.0))
+    brain.w2[:, action] += rate * error * hidden
+    brain.b2[action] += rate * error

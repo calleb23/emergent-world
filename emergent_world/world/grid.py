@@ -33,6 +33,10 @@ class World:
         self.terrain = np.full((self.width, self.height), GRASS, dtype=np.int8)
         self.plants = np.full((self.width, self.height), NO_PLANT, dtype=np.int8)
 
+        # Shelters people build: stick piles growing into finished shelters.
+        self.piles = np.zeros((self.width, self.height), dtype=np.int16)
+        self.shelter = np.zeros((self.width, self.height), dtype=bool)
+
         self._make_lakes()
         self._make_habitats()
         self._seed_plants()
@@ -125,6 +129,26 @@ class World:
                         nx, ny = nests[int(self.rng.integers(0, len(nests)))]
                         self.plants[nx, ny] = item_id
                         count += 1
+
+    def add_to_shelter(self, x: int, y: int, needed: int) -> bool:
+        """Put a stick on the pile at (x, y). Returns True when that finishes a shelter."""
+        if self.shelter[x, y]:
+            return False
+        self.piles[x, y] += 1
+        if self.piles[x, y] >= needed:
+            self.shelter[x, y] = True
+            return True
+        return False
+
+    def shelter_near(self, x: int, y: int, reach: int):
+        """The nearest finished shelter within `reach` tiles, or None."""
+        x0, x1 = max(0, x - reach), min(self.width, x + reach + 1)
+        y0, y1 = max(0, y - reach), min(self.height, y + reach + 1)
+        found = np.argwhere(self.shelter[x0:x1, y0:y1])
+        if len(found) == 0:
+            return None
+        sx, sy = found[0]
+        return int(sx + x0), int(sy + y0)
 
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height

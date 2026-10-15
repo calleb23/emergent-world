@@ -6,6 +6,7 @@ import numpy as np
 
 from emergent_world.agents.agent import MOVES, Action, Agent, Sickness
 from emergent_world.agents.brain import Brain
+from emergent_world import behaviour
 from emergent_world.agents.names import label, make_name
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
@@ -22,6 +23,7 @@ class Simulation:
         self.rng = np.random.default_rng(seed)
         self.world = World(self.config, self.rng)
         self.climate = Climate(self.rng) if self.config.climate else None
+        self.world.climate = self.climate   # senses read light and weather through the world
         if self.config.policy == "random":
             self.policy = RandomPolicy(self.rng)
         else:
@@ -89,7 +91,8 @@ class Simulation:
             water=c.max_water if water is None else water,
             health=c.max_health,
             lifespan=int(self.rng.integers(c.lifespan[0], c.lifespan[1] + 1)),
-            brain=brain,
+            brain=brain.copy() if brain is not None else None,
+            genome=brain,
             generation=parent.generation + 1 if parent else 0,
             parent_id=parent.id if parent else -1,
             lineage=parent.lineage if parent else "",
@@ -239,8 +242,12 @@ class Simulation:
         actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach, self.by_id)
         for agent, action in zip(awake, actions):
             self._act(agent, action)
+            behaviour.after_action(self, agent)
+            agent.activity = behaviour.describe(self, agent, action)
         for agent in living:
             self._update_body(agent)
+            if agent.asleep:
+                agent.activity = behaviour.describe(self, agent, None)
             if agent.alive and not agent.asleep:
                 self._maybe_reproduce(agent)
         # Dead agents live on only in the stats log.
@@ -265,7 +272,19 @@ class Simulation:
                 agent.x += dx
                 agent.y += dy
         elif action == Action.EAT:
-            self._eat(agent)
+            held = c.item(agent.hands)
+            if held is not None and held.edible:
+                agent.hands = 0
+                self._first(agent, ("ate carried",), f"Ate the {held.look} they were carrying")
+                self._consume(agent, held, carried=True)
+            else:
+                self._eat(agent)
+        elif action == Action.PICK_UP:
+            self._pick_up(agent)
+        elif action == Action.DROP:
+            self._drop(agent)
+        elif action == Action.GIVE:
+            self._give(agent)
         elif action == Action.DRINK:
             if self.world.next_to_liquid(agent.x, agent.y):
                 if "first drink" not in agent.firsts:
@@ -275,6 +294,61 @@ class Simulation:
                     self.log(agent, "Found water just in time")
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
                 agent.memory.water_at = (agent.x, agent.y)
+
+    def _first(self, agent: Agent, key, text: str):
+        """Log a life event only the first time it happens."""
+        if key not in agent.firsts:
+            agent.firsts.add(key)
+            self.log(agent, text)
+
+    def _pick_up(self, agent: Agent):
+        if agent.hands:
+            return
+        kind = self.config.item(int(self.world.plants[agent.x, agent.y]))
+        if kind is None:
+            return
+        self.world.take_plant(agent.x, agent.y)
+        agent.hands = self.config.items.index(kind) + 1
+        self._first(agent, ("picked", kind.color), f"Picked up a {kind.look} for the first time")
+        self.chronicle(f"{label(agent)} was the first to pick something up: a {kind.look}", once="picked up")
+
+    def _drop(self, agent: Agent):
+        """Put down what's held. A stick dropped where sticks already lie adds to the
+        pile; enough sticks in one spot make a shelter."""
+        held = self.config.item(agent.hands)
+        if held is None:
+            return
+        x, y = agent.x, agent.y
+        if held.look == "stick" and self.world.terrain[x, y] == 0:
+            agent.hands = 0
+            if self.world.add_to_shelter(x, y, self.config.sticks_per_shelter):
+                self.log(agent, "Dropped a stick on the pile, and it became a shelter")
+                self.chronicle(f"{label(agent)} made the first shelter, from a pile of sticks", once="shelter")
+            else:
+                self._first(agent, ("dropped stick",), "Put a stick down")
+            return
+        if self.world.plants[x, y] == 0:
+            self.world.plants[x, y] = agent.hands
+            agent.hands = 0
+            self._first(agent, ("dropped", held.color), f"Put down a {held.look}")
+
+    def _give(self, agent: Agent):
+        """Hand what's held to the nearest person right next to you."""
+        held = self.config.item(agent.hands)
+        if held is None:
+            return
+        near = [o for o in self.agents if o is not agent and o.alive and not o.hands
+                and max(abs(o.x - agent.x), abs(o.y - agent.y)) <= 1]
+        if not near:
+            return
+        other = near[0]
+        other.hands, agent.hands = agent.hands, 0
+        self.log(agent, f"Gave a {held.look} to {other.name}")
+        self.log(other, f"{agent.name} gave them a {held.look}")
+        self.chronicle(f"{label(agent)} gave something to someone for the first time: "
+                       f"a {held.look}, to {other.name}", once="gave")
+        for a, b in ((agent, other), (other, agent)):
+            a.known[b.id] = min(1.0, a.known.get(b.id, 0) + 0.05)
 
     def _eat(self, agent: Agent):
         """Try to eat whatever loose item is underfoot. Instinct tries anything solid."""
@@ -296,6 +370,12 @@ class Simulation:
                     self.log(kin, f"Watched {agent.name} bite a {look} for nothing; learned it isn't food")
             return
         self.world.take_plant(agent.x, agent.y)
+        self._consume(agent, kind)
+
+    def _consume(self, agent: Agent, kind, carried: bool = False):
+        """Eat an edible item, from the ground or from the hands."""
+        c = self.config
+        color, look = kind.color, kind.look
         if color not in agent.firsts:
             agent.firsts.add(color)
             caught = "Caught and ate" if kind.wanders else "Ate"
@@ -313,7 +393,7 @@ class Simulation:
                     kin.firsts.add(("learned", color))
                     self.log(kin, f"Watched {agent.name} eat a {look}; learning it's food")
                 kin.memory.saw_parent_eat(color, c.parent_trust)
-        if agent.memory.level(color) < 0.3:
+        if not carried and agent.memory.level(color) < 0.3:
             agent.memory.food_at = (agent.x, agent.y)
         agent.energy = min(c.max_energy, agent.energy + kind.energy)
         if kind.harmful:
@@ -341,6 +421,13 @@ class Simulation:
             if agent.asleep:
                 hunger *= c.sleep_drain
                 thirst *= c.sleep_drain
+        out_in_it = behaviour.exposed(self, agent)
+        if out_in_it:
+            hunger *= c.exposure_hunger
+            agent.take_damage(c.exposure_damage, "exposure")
+            if ("exposed",) not in agent.firsts:
+                agent.firsts.add(("exposed",))
+                self.log(agent, "Caught out in the cold and wet with nowhere to shelter")
         agent.energy = max(0.0, agent.energy - c.energy_drain * hunger)
         agent.water = max(0.0, agent.water - c.water_drain * thirst)
         self._update_fat(agent)
@@ -385,10 +472,32 @@ class Simulation:
         if agent.fatigue >= 1.0 and not agent.asleep:
             agent.take_damage(c.exhaustion_damage, "exhaustion")
 
+        self._feel(agent)
         if agent.health <= 0:
             self._kill(agent, agent.last_damage)
         elif agent.age >= agent.lifespan:
             self._kill(agent, "old_age")
+
+    def _feel(self, agent: Agent):
+        """How much better or worse this hour felt. Needs easing feels good, pain,
+        cold and wet, and boredom feel bad, new ground feels good. Brains learn
+        from this; the viewer shows its running average as mood."""
+        c = self.config
+        levels = (agent.energy / c.max_energy, agent.water / c.max_water,
+                  agent.health / c.max_health, 1.0 - agent.fatigue)
+        comfort = -sum((1.0 - v) ** 2 for v in levels)
+        feeling = 0.0 if agent.comfort is None else 2.0 * (comfort - agent.comfort)
+        agent.comfort = comfort
+        if behaviour.exposed(self, agent):
+            feeling -= c.exposure_weight
+        feeling -= c.boredom_weight * agent.boredom
+        if len(agent.recent) >= 2 and agent.recent[-1] not in agent.recent[:-1]:
+            feeling += c.novelty_reward
+        if agent.last_damage and agent.health < agent.last_health:
+            feeling -= c.pain_weight * (agent.last_health - agent.health)
+        agent.last_health = agent.health
+        agent.reward += feeling
+        agent.mood = 0.99 * agent.mood + 0.01 * feeling * 10
 
     def _update_fat(self, agent: Agent):
         """Spare energy is stored as fat; in lean times fat is burned back."""
@@ -454,7 +563,7 @@ class Simulation:
         agent.reproduce_cooldown = c.reproduce_cooldown
         agent.children += 1
         source = agent if father is None or self.rng.random() < 0.5 else father
-        brain = source.brain.mutated(self.rng, c.mutation_scale, c.mutation_rate) if source.brain else None
+        brain = source.genome.mutated(self.rng, c.mutation_scale, c.mutation_rate) if source.genome else None
         child = self.spawn_agent(x, y, brain=brain, parent=agent, father=father,
                                  energy=c.child_energy, water=c.child_water)
         self.stats.record_birth(child)
@@ -577,9 +686,9 @@ class Simulation:
             self._pick_next_followed(agent)
         self._chronicle_death(agent, cause)
         self.stats.record_death(agent, self.tick_count)
-        if agent.brain is not None:
+        if agent.genome is not None:
             fitness = agent.age + self.config.child_fitness * agent.children
-            self.recent_deaths.append((fitness, agent.brain))
+            self.recent_deaths.append((fitness, agent.genome))
 
     def _grieve(self, mourner: Agent, lost: Agent):
         """Losing close family weighs on someone for days: they want to sit still."""

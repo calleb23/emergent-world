@@ -105,9 +105,10 @@ def save(brain: Brain, path: Path):
 def load(path: Path) -> Brain:
     data = np.load(path)
     brain = Brain(data["w1"], data["b1"], data["w2"], data["b2"])
-    if brain.w1.shape != (INPUT_SIZE, HIDDEN_SIZE) or brain.w2.shape != (HIDDEN_SIZE, OUTPUT_SIZE):
+    if brain.w1.shape[0] > INPUT_SIZE or brain.w2.shape != (HIDDEN_SIZE, brain.w2.shape[1]) \
+            or brain.w2.shape[1] > OUTPUT_SIZE:
         raise ValueError(f"{path} doesn't match the current brain shape; retrain it.")
-    return brain
+    return brain.fitted()
 
 
 def main():

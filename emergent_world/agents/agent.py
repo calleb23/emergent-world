@@ -14,6 +14,9 @@ class Action(IntEnum):
     EAT = 4
     DRINK = 5
     REST = 6
+    PICK_UP = 7   # take the item underfoot into the hands
+    DROP = 8      # put down what's in the hands (sticks dropped on one spot pile up)
+    GIVE = 9      # hand what's held to the nearest person next to you
 
 
 MOVES = {
@@ -42,7 +45,13 @@ class Agent:
     water: float
     health: float
     lifespan: int
-    brain: object = None    # a Brain; None when using the random policy
+    brain: object = None    # the living brain, which learns; None when using the random policy
+    genome: object = None   # the brain they were born with, which is what children inherit
+    reward: float = 0.0     # how much better or worse they've felt since their last choice
+    mood: float = 0.0       # a slow average of reward: how life is going lately
+    last_choice: tuple | None = None   # (hidden, action, expected value), for learning
+    comfort: float | None = None   # last hour's overall need satisfaction, for working out reward
+    last_health: float = 100.0
     generation: int = 0
     parent_id: int = -1     # mother; -1 for agents with no parents (founders, top-ups)
     other_parent_id: int = -1  # father, when there was one
@@ -61,6 +70,10 @@ class Agent:
     fat: float = 0.0        # stored energy for lean times
     grief: int = 0          # hours of grieving left
     known: dict = field(default_factory=dict)  # id -> bond 0..1: people met, and how close
+    hands: int = 0          # item id being carried (0 = nothing)
+    activity: str = ""      # what they're doing right now, for the viewer
+    boredom: float = 0.0    # 0..1: builds while stuck in a small patch
+    recent: list = field(default_factory=list)   # recent positions, for boredom
     asleep: bool = False
     children: int = 0
     reproduce_cooldown: int = 0
