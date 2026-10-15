@@ -5,7 +5,9 @@ about 10 days, hunger in about 2-3 weeks, poison acts within a day). Lifespans
 vary by phase: short in prehistory so generations fly by, long in the real world.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from emergent_world.world.items import DEFAULT_ITEMS, ItemKind
 
 TICKS_PER_DAY = 24
 TICKS_PER_YEAR = TICKS_PER_DAY * 365
@@ -32,18 +34,12 @@ class Config:
     height: int = 64
     water_lakes: int = 12           # number of ponds scattered on the map
     lake_radius: tuple = (2, 4)     # min/max pond radius in tiles
-    initial_plant_density: float = 0.15   # share of grass tiles that start with a plant
-    regrow_chance: float = 0.0008         # per empty grass tile, per tick; sets how many agents food supports
-    wilt_chance: float = 0.002            # per plant, per tick; uneaten plants don't last forever
-    poison_share: float = 0.10            # share of new plants that are poisonous
+    initial_item_density: float = 0.15    # share of grass tiles that start with an item
+    regrow_chance: float = 0.0009         # per empty grass tile, per tick; sets how many agents food supports
+    near_water: int = 3                   # tiles from water that count as damp ("near_water" items)
+    dry_distance: int = 8                 # tiles from water beyond which it's dry ("dry" items)
+    items: tuple = field(default_factory=lambda: DEFAULT_ITEMS)  # every kind of item: see world/items.py
 
-    # Plant appearance (RGB). Agents will eventually see colors, never labels,
-    # so the poison plant only *looks* slightly different.
-    food_color: tuple = (60, 170, 70)
-    poison_color: tuple = (90, 170, 60)
-    # How an observer describes each look in life stories (never "food" or "poison").
-    food_look: str = "green plant"
-    poison_look: str = "yellow-green plant"
 
     # Agents
     initial_agents: int = 50
@@ -58,12 +54,17 @@ class Config:
     lifespan: tuple = (days(33), days(50))  # min/max ticks before old age (prehistory scale)
 
     # Food and drink
-    food_energy: float = 30.0
-    poison_energy: float = 20.0     # poison still tastes like food at first
-    poison_delay: int = 25          # ticks (hours) before sickness starts
-    poison_damage: float = 6.0      # health lost per tick while sick
-    poison_duration: int = 10       # ticks of sickness
     drink_amount: float = 40.0
+
+    # Day and night, seasons, weather and sleep (see world/climate.py)
+    climate: bool = True            # False: endless clear daylight, no sleep (old behavior)
+    fatigue_rate: float = 0.05      # tiredness gained per waking hour (exhausted after 20 hours)
+    rest_rate: float = 0.12         # tiredness lost per hour asleep (about 8 hours of sleep)
+    sleep_threshold: float = 0.6    # tired enough to fall asleep once it's dark
+    wake_threshold: float = 0.4     # rested enough to get up once it's light
+    sleep_drain: float = 0.6        # hunger and thirst slow to this share while asleep
+    sleep_healing: float = 2.0      # healing runs this many times faster while asleep
+    exhaustion_damage: float = 0.5  # health lost per hour while awake and exhausted
 
     # Senses and brain
     policy: str = "brain"           # "brain" or "random" (a baseline to compare against)
@@ -89,9 +90,12 @@ class Config:
     aversion_window: int = 48       # ticks: meals this recent get blamed for sickness
     sickness_aversion: float = 0.8  # aversion added to foods blamed for getting sick
     witness_aversion: float = 0.6   # added to foods a relative ate before dying of poison
+    inedible_aversion: float = 0.3  # added each time an agent bites something it can't eat
     learned_safety: float = 0.3     # share of aversion removed when a food proves safe
     aversion_fade: float = 0.995    # daily multiplier; aversion halves in about 140 days
     aversion_gain: float = 10.0     # starting value of the gene that turns aversion into not eating
+    steer_strength: float = 0.5     # share of that pull used to steer away from foods in sight
+    desperation_below: float = 0.5  # below this share of energy, hunger starts overriding wariness
     aversion_gain_mutation: float = 0.5  # how much that gene varies between parent and child
 
     # Instincts: a brain file from `python -m emergent_world.instincts`. When set,
@@ -116,6 +120,25 @@ class Config:
     # ramp up to full strength, so blank brains survive long enough to breed.
     garden_start: float = 0.4       # drain multiplier at tick 0
     garden_ticks: int = 30000       # ticks to reach full difficulty (0 = no garden)
+
+    def item(self, item_id: int) -> ItemKind | None:
+        """The kind of item with this map id (0 = nothing)."""
+        return self.items[item_id - 1] if 0 < item_id <= len(self.items) else None
+
+    def look_of(self, color) -> str:
+        for kind in self.items:
+            if kind.color == color:
+                return kind.look
+        return "something"
+
+    # The two original plants, by name, for code and tests that use them directly.
+    @property
+    def food_color(self) -> tuple:
+        return self.items[0].color
+
+    @property
+    def poison_color(self) -> tuple:
+        return self.items[1].color
 
     @property
     def average_lifespan(self) -> float:

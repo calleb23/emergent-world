@@ -4,23 +4,20 @@
     python -m emergent_world.replay --run-years 5 --seed 2
 
 No pygame needed: open replay.html in a browser to play the run back, scrub
-through time, and click any agent to read their life story.
+through time, and click any agent to read their life story. To watch a run as
+it happens instead, use `python -m emergent_world.live`.
 """
 
 import argparse
-import json
 from pathlib import Path
 
 from emergent_world.config import TICKS_PER_DAY, TICKS_PER_YEAR, Config
 from emergent_world.sim import Simulation
+from emergent_world.webview import agent_rows, climate_info, page, person, plant_string, static_info
 
 FRAME_EVERY = 6        # ticks (hours) between recorded frames
 KEYFRAME_DAYS = 10     # a full plant map every this many days; changes in between
-TEMPLATE = Path(__file__).with_name("replay_template.html")
-
-
-def _plant_string(world) -> str:
-    return "".join(str(int(v)) for v in world.plants.T.flatten())  # row by row
+WEATHER = ("clear", "cloudy", "rain", "storm", "fog", "snow")
 
 
 def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
@@ -31,23 +28,19 @@ def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
     world = sim.world
 
     known = {}            # every agent that ever lived, by id
-    frames = []           # [followed id, [id, x, y, energy, water, health, ...]]
+    frames = []           # [followed id, weather index, temperature, agent rows]
     keyframes = {}        # day -> full plant string
     plant_changes = []    # per day: [index, value, index, value, ...]
     previous = world.plants.T.flatten().copy()
 
     def snapshot():
-        agents = []
-        for a in sim.agents:
-            if a.alive:
-                agents += [a.id, a.x, a.y, round(100 * a.energy / config.max_energy),
-                           round(100 * a.water / config.max_water),
-                           round(100 * a.health / config.max_health)]
-        frames.append([sim.followed_id if sim.followed_id is not None else -1, agents])
+        weather = climate_info(sim)
+        frames.append([sim.followed_id if sim.followed_id is not None else -1,
+                       WEATHER.index(weather["weather"]), weather["temp"], agent_rows(sim)])
 
     for a in sim.agents:
         known[a.id] = a
-    keyframes[0] = _plant_string(world)
+    keyframes[0] = plant_string(world)
     snapshot()
     total = int(run_years * TICKS_PER_YEAR)
     while sim.tick_count < total and sim.living:
@@ -60,50 +53,28 @@ def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
             day = sim.tick_count // TICKS_PER_DAY
             now = world.plants.T.flatten()
             if day % KEYFRAME_DAYS == 0:
-                keyframes[day] = _plant_string(world)
+                keyframes[day] = plant_string(world)
                 plant_changes.append([])
             else:
                 changed = (now != previous).nonzero()[0]
                 plant_changes.append([int(v) for i in changed for v in (i, now[i])])
             previous = now.copy()
 
-    people = {}
-    for a in known.values():
-        # Tick the agent was born. Founders arrive part-way through life, so
-        # their birth is before the run started (a negative tick).
-        end = sim.tick_count if a.alive else a.events[-1][0]
-        people[a.id] = {
-            "parent": a.parent_id,
-            "children": a.offspring,
-            "generation": a.generation,
-            "lifespan": a.lifespan,
-            "born": end - a.age,
-            "died": None if a.alive else end,
-            "cause": a.cause_of_death,
-            "events": [[t, text] for t, text in a.events],
-        }
-
-    return {
-        "seed": seed,
-        "width": world.width,
-        "height": world.height,
+    data = static_info(sim, "replay")
+    data.update({
         "frameEvery": FRAME_EVERY,
-        "ticksPerDay": TICKS_PER_DAY,
         "keyframeDays": KEYFRAME_DAYS,
-        "terrain": "".join(str(int(v)) for v in world.terrain.T.flatten()),
+        "weatherNames": WEATHER,
         "keyframes": keyframes,
         "plantChanges": plant_changes,
         "frames": frames,
-        "people": people,
-        "colors": {"food": config.food_color, "poison": config.poison_color},
-        "looks": {"food": config.food_look, "poison": config.poison_look},
-        "lifespanYears": round(config.average_lifespan / TICKS_PER_YEAR, 1),
-    }
+        "people": {a.id: person(a, sim.tick_count) for a in known.values()},
+    })
+    return data
 
 
 def write_page(data: dict, out: Path):
-    page = TEMPLATE.read_text().replace("/*REPLAY_DATA*/null", json.dumps(data, separators=(",", ":")))
-    out.write_text(page)
+    out.write_text(page(data))
 
 
 def main():

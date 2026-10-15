@@ -53,6 +53,8 @@ class Agent:
     events: list = field(default_factory=list)   # (tick, text): this agent's life story
     firsts: set = field(default_factory=set)  # first-time experiences already logged
     out_of: set = field(default_factory=set)     # needs currently at zero ("water", "food")
+    fatigue: float = 0.0    # 0 rested .. 1 exhausted
+    asleep: bool = False
     children: int = 0
     reproduce_cooldown: int = 0
     age: int = 0

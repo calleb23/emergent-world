@@ -72,7 +72,7 @@ def test_child_who_watches_parent_die_of_poison_learns_to_avoid_it():
     sim.world.plants[parent.x, parent.y] = POISON
     sim._act(parent, Action.EAT)          # child sees the meal
     parent.health = 1
-    for _ in range(sim.config.poison_delay + 1):
+    for _ in range(sim.config.items[1].toxin_delay + 1):
         if parent.alive:
             sim._update_body(parent)
     assert not parent.alive and parent.cause_of_death == "poison"
@@ -115,3 +115,26 @@ def test_following_passes_to_a_child_on_death():
     assert sim.followed_id == child.id   # the oldest living child
     assert told[0] == (parent.id, f"Died of old age, aged {parent.age // 24} days")
     assert told[-1][0] == child.id and "child of" in told[-1][1]
+
+
+def test_wariness_steers_away_from_foods_in_sight():
+    from emergent_world.agents.senses import sense_all
+    sim, parent, child, sibling = _family_sim()
+    for other in (parent, sibling):
+        other.x, other.y = 5, 5          # out of the way
+    sim.world.plants[child.x + 3, child.y] = POISON   # east, in sight
+    sim.world.plants[child.x, child.y - 2] = FOOD     # north, in sight
+    child.memory.aversion[POISON_COLOR] = 1.0
+    inputs = sense_all([child], sim.world, sim.config)
+    north, south, east, west = BrainPolicy.steer_penalty([child], inputs, sim.config)[0]
+    assert east > 0                        # held back from the poison
+    assert north == south == west == 0     # nothing to be wary of elsewhere
+
+
+def test_hunger_overrides_wariness():
+    sim, parent, child, _ = _family_sim()
+    child.energy = sim.config.max_energy
+    fed = BrainPolicy.desperation([child], sim.config)[0]
+    child.energy = 0
+    starving = BrainPolicy.desperation([child], sim.config)[0]
+    assert fed == 1.0 and abs(starving - 0.1) < 1e-6

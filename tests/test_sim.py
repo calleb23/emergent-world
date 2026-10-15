@@ -28,7 +28,7 @@ def test_poison_damage_is_delayed():
     assert sim.world.plants[agent.x, agent.y] == NO_PLANT
 
     start = agent.health
-    for _ in range(config.poison_delay):
+    for _ in range(config.items[1].toxin_delay):
         sim._update_body(agent)
     assert agent.health >= start  # no damage during the delay
 
@@ -44,7 +44,7 @@ def test_food_restores_energy():
     agent.energy = 10
     sim.world.plants[agent.x, agent.y] = FOOD
     sim._act(agent, Action.EAT)
-    assert agent.energy == 10 + config.food_energy
+    assert agent.energy == 10 + config.items[0].energy
 
 
 def test_starving_agent_dies_of_starvation():

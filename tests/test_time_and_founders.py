@@ -54,6 +54,6 @@ def test_replay_records_a_short_run(tmp_path):
     out = tmp_path / "replay.html"
     write_page(data, out)
     page = out.read_text()
-    assert "/*REPLAY_DATA*/null" not in page
+    assert "/*VIEWER_DATA*/null" not in page
     start = page.index("const DATA = ") + len("const DATA = ")
     assert json.loads(page[start:page.index(";\n", start)])["seed"] == 0

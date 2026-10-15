@@ -9,7 +9,8 @@ from emergent_world.agents.brain import Brain
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
 from emergent_world.stats import Stats
-from emergent_world.world.grid import FOOD, POISON, World
+from emergent_world.world.climate import Climate
+from emergent_world.world.grid import World
 
 
 class Simulation:
@@ -19,6 +20,7 @@ class Simulation:
         # One generator for everything, so a seed replays a run exactly.
         self.rng = np.random.default_rng(seed)
         self.world = World(self.config, self.rng)
+        self.climate = Climate(self.rng) if self.config.climate else None
         if self.config.policy == "random":
             self.policy = RandomPolicy(self.rng)
         else:
@@ -54,9 +56,12 @@ class Simulation:
             for brain in chosen:
                 agent = self.spawn_agent(brain=brain)
                 agent.age = int(self.rng.integers(0, agent.lifespan // 2))
+                agent.fatigue = self.config.sleep_threshold  # the world starts at midnight
         else:
             for _ in range(self.config.initial_agents):
-                self.spawn_agent()
+                agent = self.spawn_agent()
+                agent.fatigue = self.config.sleep_threshold
+
 
     @property
     def uses_brains(self) -> bool:
@@ -111,8 +116,7 @@ class Simulation:
             self.on_event(agent, self.tick_count, text)
 
     def look_name(self, color) -> str:
-        c = self.config
-        return {c.food_color: c.food_look, c.poison_color: c.poison_look}.get(color, "something")
+        return self.config.look_of(color)
 
     def relation(self, agent: Agent, other: Agent) -> str:
         """What `other` is to `agent`: parent, child or sibling."""
@@ -146,8 +150,9 @@ class Simulation:
         return max(0.0, parent.aversion_gain + float(self.rng.normal(0, c.aversion_gain_mutation)))
 
     def plant_color(self, plant: int):
-        """What a plant looks like. Memory is keyed by appearance, never by type."""
-        return {FOOD: self.config.food_color, POISON: self.config.poison_color}.get(plant)
+        """What an item looks like. Memory is keyed by appearance, never by type."""
+        kind = self.config.item(plant)
+        return kind.color if kind else None
 
     def kin_watching(self, agent: Agent) -> list:
         """Living relatives close enough to see this agent."""
@@ -172,14 +177,25 @@ class Simulation:
     def living(self) -> list[Agent]:
         return [a for a in self.agents if a.alive]
 
+    @property
+    def vision_reach(self) -> int:
+        """How far agents can see right now: less at night and in bad weather."""
+        if self.climate is None:
+            return self.config.vision_range
+        return max(2, round(self.config.vision_range * self.climate.visibility))
+
     def tick(self):
-        self.world.tick()
+        if self.climate is not None:
+            self.climate.tick()
+        self.world.tick(self.climate.growth if self.climate is not None else 1.0)
         living = self.living
-        actions = self.policy.choose_actions(living, self.world, self.config)
-        for agent, action in zip(living, actions):
+        awake = [a for a in living if not a.asleep]
+        actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach)
+        for agent, action in zip(awake, actions):
             self._act(agent, action)
+        for agent in living:
             self._update_body(agent)
-            if agent.alive:
+            if agent.alive and not agent.asleep:
                 self._maybe_reproduce(agent)
         # Dead agents live on only in the stats log.
         self.agents = [a for a in self.agents if a.alive]
@@ -198,28 +214,7 @@ class Simulation:
                 agent.x += dx
                 agent.y += dy
         elif action == Action.EAT:
-            plant = self.world.take_plant(agent.x, agent.y)
-            color = self.plant_color(plant)
-            if color is not None:
-                look = self.look_name(color)
-                if color not in agent.firsts:
-                    agent.firsts.add(color)
-                    self.log(agent, f"Ate a {look} for the first time")
-                elif agent.memory.level(color) > 0.5:
-                    self.log(agent, f"Ate a {look} despite a bad feeling about it")
-                self.stats.record_meal_by_learning(agent, plant == POISON)
-                agent.memory.record_meal(self.tick_count, color)
-                for kin in self.kin_watching(agent):
-                    kin.memory.saw_kin_eat(self.tick_count, agent.id, color)
-            if plant == FOOD:
-                agent.energy = min(c.max_energy, agent.energy + c.food_energy)
-                self.stats.record_meal(agent, "food")
-            elif plant == POISON:
-                agent.energy = min(c.max_energy, agent.energy + c.poison_energy)
-                agent.sicknesses.append(
-                    Sickness(c.poison_delay, c.poison_duration, c.poison_damage)
-                )
-                self.stats.record_meal(agent, "poison")
+            self._eat(agent)
         elif action == Action.DRINK:
             if self.world.next_to_liquid(agent.x, agent.y):
                 if "first drink" not in agent.firsts:
@@ -228,6 +223,36 @@ class Simulation:
                 if "water" in agent.out_of:
                     self.log(agent, "Found water just in time")
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
+
+    def _eat(self, agent: Agent):
+        """Try to eat whatever loose item is underfoot. Instinct tries anything solid."""
+        c = self.config
+        kind = c.item(int(self.world.plants[agent.x, agent.y]))
+        if kind is None:
+            return
+        color, look = kind.color, kind.look
+        if not kind.edible:
+            # A rock or stick: nothing happens, and it stays where it is. Biting
+            # it again feels pointless, so it becomes mildly unappealing.
+            if ("bit", color) not in agent.firsts:
+                agent.firsts.add(("bit", color))
+                self.log(agent, f"Tried to eat a {look}; nothing happened")
+            agent.memory.bit_inedible(color, c.inedible_aversion)
+            return
+        self.world.take_plant(agent.x, agent.y)
+        if color not in agent.firsts:
+            agent.firsts.add(color)
+            self.log(agent, f"Ate a {look} for the first time")
+        elif agent.memory.level(color) > 0.5:
+            self.log(agent, f"Ate a {look} despite a bad feeling about it")
+        self.stats.record_meal_by_learning(agent, kind.harmful)
+        agent.memory.record_meal(self.tick_count, color)
+        for kin in self.kin_watching(agent):
+            kin.memory.saw_kin_eat(self.tick_count, agent.id, color)
+        agent.energy = min(c.max_energy, agent.energy + kind.energy)
+        if kind.harmful:
+            agent.sicknesses.append(Sickness(kind.toxin_delay, kind.toxin_hours, kind.toxin))
+        self.stats.record_meal(agent, "poison" if kind.harmful else "food")
 
     @property
     def difficulty(self) -> float:
@@ -242,8 +267,16 @@ class Simulation:
         c = self.config
         agent.age += 1
         agent.reproduce_cooldown = max(0, agent.reproduce_cooldown - 1)
-        agent.energy = max(0.0, agent.energy - c.energy_drain * self.difficulty)
-        agent.water = max(0.0, agent.water - c.water_drain * self.difficulty)
+        hunger = thirst = self.difficulty
+        if self.climate is not None:
+            hunger *= self.climate.hunger
+            thirst *= self.climate.thirst
+            self._update_sleep(agent)
+            if agent.asleep:
+                hunger *= c.sleep_drain
+                thirst *= c.sleep_drain
+        agent.energy = max(0.0, agent.energy - c.energy_drain * hunger)
+        agent.water = max(0.0, agent.water - c.water_drain * thirst)
 
         for need, level, text in (("food", agent.energy, "Starving: ran out of energy"),
                                   ("water", agent.water, "Parched: ran out of water")):
@@ -274,12 +307,44 @@ class Simulation:
         agent.sicknesses = [s for s in agent.sicknesses if s.duration > 0]
 
         if agent.energy > 0 and agent.water > 0 and not agent.sicknesses:
-            agent.health = min(c.max_health, agent.health + c.healing)
+            rest = c.sleep_healing if agent.asleep else 1.0
+            agent.health = min(c.max_health, agent.health + c.healing * rest)
+        if agent.fatigue >= 1.0 and not agent.asleep:
+            agent.take_damage(c.exhaustion_damage, "exhaustion")
 
         if agent.health <= 0:
             self._kill(agent, agent.last_damage)
         elif agent.age >= agent.lifespan:
             self._kill(agent, "old_age")
+
+    def _update_sleep(self, agent: Agent):
+        """Tiredness builds while awake. Tired agents sleep at night and wake
+        rested, or early if thirst, hunger or sickness gets bad; pushed too far,
+        they collapse wherever they are."""
+        c, climate = self.config, self.climate
+        if agent.asleep:
+            agent.fatigue = max(0.0, agent.fatigue - c.rest_rate)
+            urgent = (agent.water < 0.15 * c.max_water or agent.energy < 0.10 * c.max_energy
+                      or any(s.felt for s in agent.sicknesses))
+            # Sleep lasts until dawn once rested; nobody gets up in the dark for no reason.
+            rested = not climate.is_night and agent.fatigue < c.wake_threshold
+            if urgent or rested:
+                agent.asleep = False
+                if urgent and agent.fatigue > 0.5 and ("woke", "urgent") not in agent.firsts:
+                    agent.firsts.add(("woke", "urgent"))
+                    self.log(agent, "Woke in the night, too thirsty or hungry to sleep")
+        else:
+            agent.fatigue = min(1.0, agent.fatigue + c.fatigue_rate)
+            if agent.fatigue >= 1.0:
+                agent.asleep = True
+                self.log(agent, "Collapsed from exhaustion")
+            elif climate.is_night and agent.fatigue >= c.sleep_threshold:
+                agent.asleep = True
+        weather = climate.weather
+        if weather in ("storm", "snow") and ("weather", weather) not in agent.firsts:
+            agent.firsts.add(("weather", weather))
+            self.log(agent, "Caught in a storm for the first time" if weather == "storm"
+                     else "Saw snow for the first time")
 
     def _maybe_reproduce(self, agent: Agent):
         c = self.config

@@ -58,6 +58,6 @@ class TeacherPolicy:
     def __init__(self, rng: np.random.Generator):
         self.rng = rng
 
-    def choose_actions(self, agents: list, world, config) -> list:
-        inputs = sense_all(agents, world, config)
+    def choose_actions(self, agents: list, world, config, reach: int | None = None) -> list:
+        inputs = sense_all(agents, world, config, reach)
         return [teacher_action(x, self.rng) for x in inputs]

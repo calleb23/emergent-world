@@ -21,6 +21,23 @@ from emergent_world.config import Config
 from emergent_world.sim import Simulation
 
 
+class _RecordingTeacher:
+    """Acts like a policy: records (senses, teacher's choice) for every awake agent,
+    then returns the teacher's choice, or with probability `noise` a random one."""
+
+    def __init__(self, rng: np.random.Generator, noise: float):
+        self.rng, self.noise = rng, noise
+        self.xs, self.ys = [], []
+
+    def choose_actions(self, agents: list, world, config, reach: int | None = None) -> list:
+        inputs = sense_all(agents, world, config, reach)
+        labels = [teacher_action(x, self.rng) for x in inputs]
+        self.xs.append(inputs)
+        self.ys.append(np.array(labels, dtype=np.int64))
+        return [Action(int(self.rng.integers(0, len(Action)))) if self.rng.random() < self.noise else a
+                for a in labels]
+
+
 def collect(samples: int, seed: int, noise: float = 0.2) -> tuple:
     """Run the teacher and record (senses, teacher action) pairs.
 
@@ -30,30 +47,13 @@ def collect(samples: int, seed: int, noise: float = 0.2) -> tuple:
     """
     config = Config(garden_ticks=0, initial_agents=100, min_population=100)
     sim = Simulation(config, seed=seed)
-    rng = np.random.default_rng(seed)
-    xs, ys = [], []
+    teacher = _RecordingTeacher(np.random.default_rng(seed), noise)
+    sim.policy = teacher
     count = 0
-    while count < samples:
-        living = sim.living
-        inputs = sense_all(living, sim.world, config)
-        labels = [teacher_action(x, rng) for x in inputs]
-        actions = [Action(int(rng.integers(0, len(Action)))) if rng.random() < noise else a
-                   for a in labels]
-        xs.append(inputs)
-        ys.append(np.array(labels))
-        count += len(labels)
-
-        # Advance the world one tick using those actions.
-        sim.world.tick()
-        for agent, action in zip(living, actions):
-            sim._act(agent, action)
-            sim._update_body(agent)
-            if agent.alive:
-                sim._maybe_reproduce(agent)
-        sim.agents = [a for a in sim.agents if a.alive]
-        sim._bootstrap()
-        sim.tick_count += 1
-    return np.concatenate(xs)[:samples], np.concatenate(ys)[:samples]
+    while count < samples and sim.living:
+        sim.tick()
+        count += len(teacher.ys[-1]) if teacher.ys else 0
+    return np.concatenate(teacher.xs)[:samples], np.concatenate(teacher.ys)[:samples]
 
 
 def train(xs: np.ndarray, ys: np.ndarray, epochs: int = 30, lr: float = 0.01,

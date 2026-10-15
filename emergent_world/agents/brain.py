@@ -49,7 +49,7 @@ class Brain:
 
 def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
           selection: str = "argmax", exploration: float = 0.1,
-          eat_penalty: np.ndarray | None = None) -> np.ndarray:
+          penalties: np.ndarray | None = None) -> np.ndarray:
     """Run every brain at once. inputs: (agents, INPUT_SIZE). Returns action ids.
 
     "argmax" takes each brain's top action, with a small chance of a random one
@@ -57,8 +57,9 @@ def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
     behavior much faster: a mutation only has to make the right action win,
     not dominate. "sample" draws actions by probability instead.
 
-    eat_penalty (one per agent) lowers the urge to eat: the built-in wiring
-    through which bad food memories hold an agent back.
+    penalties (agents x actions) lower the urge to take each action: the
+    built-in wiring through which bad food memories hold an agent back from
+    eating a food, or walking toward it.
     """
     w1 = np.stack([b.w1 for b in brains])
     b1 = np.stack([b.b1 for b in brains])
@@ -67,18 +68,18 @@ def think(brains: list, inputs: np.ndarray, rng: np.random.Generator,
 
     hidden = np.tanh(np.einsum("ni,nih->nh", inputs, w1) + b1)
     logits = np.einsum("nh,nho->no", hidden, w2) + b2
-    if eat_penalty is not None:
-        logits[:, Action.EAT] -= eat_penalty
+    if penalties is not None:
+        logits -= penalties
 
     if selection == "argmax":
         actions = logits.argmax(axis=1)
         explore = rng.random(len(brains)) < exploration
         actions[explore] = rng.integers(0, OUTPUT_SIZE, int(explore.sum()))
-        if eat_penalty is not None:
-            # Aversion holds back random tries too: an explored "eat" only goes
+        if penalties is not None:
+            # Aversion holds back random tries too: an explored action only goes
             # ahead with probability exp(-penalty); otherwise the agent waits.
-            refused = (explore & (actions == Action.EAT)
-                       & (rng.random(len(brains)) >= np.exp(-eat_penalty)))
+            chosen = penalties[np.arange(len(brains)), actions]
+            refused = explore & (rng.random(len(brains)) >= np.exp(-chosen))
             actions[refused] = Action.REST
         return actions
 

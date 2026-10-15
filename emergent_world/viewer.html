@@ -1,0 +1,498 @@
+<title>Emergent World</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field-station log. The map is the specimen on the left; the followed
+   person's record sits beside it, and stacks below the map on a phone. */
+:root {
+  --bg: #eceee8;
+  --surface: #f7f8f4;
+  --ink: #1c231e;
+  --muted: #5d685f;
+  --line: #d3d8cf;
+  --accent: #b97b0e;
+  --accent-soft: #f3e3c2;
+  --energy: #c8911f;
+  --water: #3a78c2;
+  --health: #3f9a5a;
+  --rest: #7a68b8;
+  --danger: #b84a3a;
+  --live: #2f8f4e;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111511; --surface: #191f1a; --ink: #e2e8e0; --muted: #8f9a90; --line: #2b332c;
+    --accent: #e2a73c; --accent-soft: #3a2e17; --energy: #d9a43a; --water: #5e9be0;
+    --health: #5cb877; --rest: #9d8be0; --danger: #e07562; --live: #5cc47f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111511; --surface: #191f1a; --ink: #e2e8e0; --muted: #8f9a90; --line: #2b332c;
+  --accent: #e2a73c; --accent-soft: #3a2e17; --energy: #d9a43a; --water: #5e9be0;
+  --health: #5cb877; --rest: #9d8be0; --danger: #e07562; --live: #5cc47f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 18px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(24px, 4vw, 32px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; display: flex; align-items: center; gap: 12px; }
+.badge { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+.badge.live { color: var(--live); border-color: var(--live); }
+.sub { color: var(--muted); margin: 0; }
+.clock { display: grid; justify-items: end; gap: 2px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.clock b { font-weight: 500; font-size: 16px; }
+.clock span { color: var(--muted); font-size: 13px; }
+.main { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } .clock { justify-items: start; } }
+.stage { display: grid; gap: 10px; min-width: 0; }
+canvas { width: 100%; max-width: 100%; aspect-ratio: 1; display: block; image-rendering: pixelated; border-radius: 4px; cursor: pointer; background: #22341e; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#play { min-width: 84px; font-weight: 700; }
+input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; flex: none; }
+.ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); display: inline-block; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
+.who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.who h2 { font-family: var(--display); font-weight: 600; font-size: 26px; margin: 0; color: var(--accent); }
+.status { font-size: 14px; color: var(--muted); }
+.status.dead { color: var(--danger); }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fact { display: grid; gap: 2px; }
+.fact b { font-family: var(--mono); font-weight: 500; font-size: 17px; font-variant-numeric: tabular-nums; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: 64px minmax(0, 1fr) 40px; align-items: center; gap: 8px; font-size: 13px; }
+.track { height: 9px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.fill { height: 100%; border-radius: 5px; transition: width 0.15s linear; }
+.bar span:last-child { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { font-family: var(--mono); font-size: 13px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.chip.gone { color: var(--muted); text-decoration: line-through; }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); }
+.wary { display: grid; gap: 4px; }
+.wary-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 10px; align-items: center; font-size: 14px; }
+.wary-row .track { height: 7px; }
+.auto { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.story { display: grid; max-height: 380px; overflow-y: auto; border-top: 1px solid var(--line); }
+.story div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.story time { font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.story p { margin: 0; }
+.story .bad { color: var(--danger); }
+.people { display: grid; gap: 8px; }
+.empty { color: var(--muted); font-style: italic; }
+.note { color: var(--danger); font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Emergent World <span class="badge" id="badge">replay</span></h1>
+      <p class="sub" id="sub">Click anyone on the map to follow their life.</p>
+    </div>
+    <div class="clock"><b id="clock">Year 1, day 1, 00:00</b><span id="sky">spring, clear</span></div>
+  </header>
+
+  <div class="main">
+    <section class="stage">
+      <canvas id="map" width="640" height="640" aria-label="Map of the world: ponds, items and people"></canvas>
+      <div class="controls">
+        <button id="play" type="button">Play</button>
+        <select id="speed" aria-label="Playback speed"></select>
+        <input id="scrub" type="range" min="0" value="0" aria-label="Time">
+      </div>
+      <p class="note" id="note" hidden></p>
+      <div class="legend" id="legend"></div>
+      <div class="people">
+        <span class="label">Alive now</span>
+        <div class="row" id="people"></div>
+      </div>
+    </section>
+
+    <aside class="panel" aria-live="polite">
+      <div class="who">
+        <h2 id="who">#0</h2>
+        <span class="status" id="status"></span>
+      </div>
+      <div class="facts">
+        <div class="fact"><span class="label">Age</span><b id="age">0 days</b></div>
+        <div class="fact"><span class="label">Generation</span><b id="gen">0</b></div>
+        <div class="fact"><span class="label">Children</span><b id="kids">0</b></div>
+      </div>
+      <div class="bars" id="bars"></div>
+      <div class="row"><span class="label">Family</span><span id="family" class="row"></span></div>
+      <div id="wary-box" class="wary" hidden>
+        <span class="label">Wary of</span>
+        <div id="wary" class="wary"></div>
+      </div>
+      <label class="auto"><input type="checkbox" id="auto" checked> Follow automatically (moves to a child when someone dies)</label>
+      <div>
+        <div class="label" style="margin-bottom:6px">Life so far, latest first</div>
+        <div class="story" id="story"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const DATA = /*VIEWER_DATA*/null;
+(function () {
+  const LIVE = DATA.mode === "live";
+  const W = DATA.width, H = DATA.height, TPD = DATA.ticksPerDay;
+  const el = id => document.getElementById(id);
+  const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+  const ITEM_COLORS = [null, ...DATA.items.map(k => rgb(k.color))];
+  const GRASS = "#22341e", WATER = "#28609f";
+  const terrain = Uint8Array.from(DATA.terrain, ch => ch.charCodeAt(0) - 48);
+  const VISIBILITY = { clear: 1, cloudy: 0.9, rain: 0.7, storm: 0.4, fog: 0.4, snow: 0.5 };
+  const SEASONS = ["spring", "summer", "autumn", "winter"];
+
+  // ---- the calendar (1 tick = 1 hour), matching world/climate.py ----
+  const light = t => {
+    const h = t % TPD + 0.5;
+    if (h >= 7 && h <= 17) return 1;
+    if (h >= 5 && h < 7) return 0.15 + 0.85 * (h - 5) / 2;
+    if (h > 17 && h <= 19) return 1 - 0.85 * (h - 17) / 2;
+    return 0.15;
+  };
+  const season = t => SEASONS[Math.floor(Math.floor(t / TPD) / 91) % 4];
+  const when = t => {
+    const day = Math.floor(t / TPD), hour = t % TPD;
+    return `Year ${Math.floor(day / 365) + 1}, day ${day % 365 + 1}, ${String(hour).padStart(2, "0")}:00`;
+  };
+  const stamp = t => {
+    const day = Math.floor(t / TPD);
+    return `y${Math.floor(day / 365) + 1} d${day % 365 + 1}`;
+  };
+
+  // ---- legend ----
+  const legend = el("legend");
+  DATA.items.forEach(k => {
+    const s = document.createElement("span");
+    s.innerHTML = `<i class="sw" style="background:${rgb(k.color)}"></i>`;
+    s.append(k.look);
+    legend.appendChild(s);
+  });
+  legend.insertAdjacentHTML("beforeend",
+    `<span><i class="sw" style="background:${WATER}"></i>pond</span><span><i class="ring"></i>followed, and how far they see</span>`);
+
+  function parseAgents(flat) {
+    const out = [];
+    for (let k = 0; k < flat.length; k += 8) {
+      out.push({ id: flat[k], x: flat[k + 1], y: flat[k + 2], energy: flat[k + 3], water: flat[k + 4],
+                 health: flat[k + 5], rest: flat[k + 6], asleep: !!flat[k + 7] });
+    }
+    return out;
+  }
+
+  // ---- state sources ----
+  let state = null;            // what's drawn now
+  let followed = -1, auto = true;
+
+  // Replay: rebuild state for any frame from the recording.
+  const frames = LIVE ? [] : DATA.frames;
+  let frame = 0, playing = false;
+  let plants = null, plantsDay = -1;
+  function plantsOn(day) {
+    if (day === plantsDay) return plants;
+    const K = DATA.keyframeDays;
+    let start = Math.floor(day / K) * K;
+    while (!(start in DATA.keyframes) && start > 0) start -= K;
+    if (!(plants && plantsDay >= start && plantsDay < day)) {
+      plants = Uint8Array.from(DATA.keyframes[start], ch => ch.charCodeAt(0) - 48);
+    } else start = plantsDay;
+    for (let d = start + 1; d <= day && d - 1 < DATA.plantChanges.length; d++) {
+      if (d in DATA.keyframes) { plants = Uint8Array.from(DATA.keyframes[d], ch => ch.charCodeAt(0) - 48); continue; }
+      const ch = DATA.plantChanges[d - 1];
+      for (let k = 0; k < ch.length; k += 2) plants[ch[k]] = ch[k + 1];
+    }
+    plantsDay = day;
+    return plants;
+  }
+  function replayState(i) {
+    const f = frames[i], t = i * DATA.frameEvery;
+    if (auto && f[0] >= 0) followed = f[0];
+    return { tick: t, weather: DATA.weatherNames[f[1]], temp: f[2], season: season(t),
+             plants: plantsOn(Math.floor(t / TPD)), agents: parseAgents(f[3]),
+             followed, person: DATA.people[followed] };
+  }
+
+  // Live: ask the running simulation.
+  let liveBusy = false, liveFailed = false;
+  async function poll() {
+    if (liveBusy) return;
+    liveBusy = true;
+    try {
+      const r = await fetch("/state", { cache: "no-store" });
+      const s = await r.json();
+      if (!auto) s.followed = s.followed;   // server keeps your choice
+      followed = s.followed;
+      auto = s.auto; el("auto").checked = auto;
+      s.plants = Uint8Array.from(s.plants, ch => ch.charCodeAt(0) - 48);
+      s.agents = parseAgents(s.agents);
+      state = s;
+      playing = !s.paused;
+      el("play").textContent = playing ? "Pause" : "Play";
+      if (el("speed").value != s.speed) el("speed").value = s.speed;
+      el("note").hidden = true; liveFailed = false;
+      render();
+    } catch (e) {
+      if (!liveFailed) { el("note").textContent = "Lost contact with the simulation. Is python -m emergent_world.live still running?"; el("note").hidden = false; }
+      liveFailed = true;
+    } finally { liveBusy = false; }
+  }
+  const control = q => fetch("/control?" + q, { method: "POST" }).then(poll).catch(() => {});
+
+  // ---- drawing ----
+  const canvas = el("map"), ctx = canvas.getContext("2d");
+  function draw() {
+    const s = state, size = canvas.width, cell = size / W;
+    ctx.fillStyle = GRASS;
+    ctx.fillRect(0, 0, size, size);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (terrain[i] === 1) { ctx.fillStyle = WATER; ctx.fillRect(x * cell, y * cell, cell + 0.5, cell + 0.5); }
+      else if (s.plants[i]) { ctx.fillStyle = ITEM_COLORS[s.plants[i]]; ctx.fillRect(x * cell + cell * 0.2, y * cell + cell * 0.2, cell * 0.6, cell * 0.6); }
+    }
+    // Night falls over everything.
+    const dark = 1 - light(s.tick);
+    if (dark > 0) { ctx.fillStyle = `rgba(8,12,30,${(dark * 0.7).toFixed(3)})`; ctx.fillRect(0, 0, size, size); }
+    // Weather.
+    if (s.weather === "fog") { ctx.fillStyle = "rgba(200,205,210,0.35)"; ctx.fillRect(0, 0, size, size); }
+    if (s.weather === "rain" || s.weather === "storm" || s.weather === "snow") {
+      const n = s.weather === "storm" ? 260 : 160;
+      let seed = (s.tick * 9301 + 49297) % 233280;
+      const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+      if (s.weather === "storm") { ctx.fillStyle = "rgba(10,14,26,0.25)"; ctx.fillRect(0, 0, size, size); }
+      ctx.strokeStyle = "rgba(180,205,255,0.55)"; ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = Math.max(1, cell * 0.08);
+      for (let k = 0; k < n; k++) {
+        const x = rnd() * size, y = rnd() * size;
+        if (s.weather === "snow") { ctx.beginPath(); ctx.arc(x, y, Math.max(1, cell * 0.12), 0, Math.PI * 2); ctx.fill(); }
+        else { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - cell * 0.3, y + cell * 0.9); ctx.stroke(); }
+      }
+    }
+    // People: dimmer and bluish while asleep.
+    for (const a of s.agents) {
+      const h = Math.max(0, Math.min(1, a.health / 100));
+      ctx.fillStyle = a.asleep ? `rgb(150,${Math.round(120 + 40 * h)},${Math.round(150 + 60 * h)})`
+                               : `rgb(255,${Math.round(80 + 175 * h)},${Math.round(80 + 175 * h)})`;
+      ctx.beginPath(); ctx.arc((a.x + 0.5) * cell, (a.y + 0.5) * cell, cell * (a.asleep ? 0.36 : 0.45), 0, Math.PI * 2); ctx.fill();
+    }
+    const f = s.agents.find(a => a.id === s.followed);
+    if (f) {
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#e2a73c";
+      const reach = Math.max(2, Math.round(DATA.visionRange * light(s.tick) * (VISIBILITY[s.weather] || 1)));
+      ctx.strokeStyle = accent; ctx.lineWidth = Math.max(2, cell * 0.22);
+      ctx.beginPath(); ctx.arc((f.x + 0.5) * cell, (f.y + 0.5) * cell, cell * 1.1, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1; ctx.globalAlpha = 0.65;
+      ctx.beginPath(); ctx.arc((f.x + 0.5) * cell, (f.y + 0.5) * cell, cell * (f.asleep ? 1.6 : reach), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---- the panel ----
+  const isAlive = (id, t) => {
+    if (LIVE) return state.agents.some(a => a.id === id);
+    const p = DATA.people[id];
+    return p && p.born <= t && (p.died === null || t < p.died);
+  };
+  function chip(id, t) {
+    const b = document.createElement("button");
+    const alive = isAlive(id, t);
+    b.type = "button";
+    b.className = "chip" + (alive ? "" : " gone") + (id === state.followed ? " on" : "");
+    b.textContent = "#" + id;
+    b.title = "Follow #" + id;
+    b.dataset.id = id;   // clicks are handled on the container, so rebuilding never loses one
+    return b;
+  }
+
+  function panel() {
+    const s = state, t = s.tick;
+    el("clock").textContent = when(t);
+    el("sky").textContent = `${s.season || season(t)}, ${s.weather}, ${s.temp}°C`;
+    const p = s.person;
+    el("who").textContent = s.followed >= 0 ? "#" + s.followed : "nobody";
+    if (!p) { el("status").textContent = "Click someone on the map."; return; }
+    const dead = p.died !== null && t >= p.died, unborn = t < p.born;
+    const me = s.agents.find(a => a.id === s.followed);
+    const ageDays = Math.max(0, Math.floor(((dead ? p.died : t) - p.born) / TPD));
+    el("status").className = "status" + (dead ? " dead" : "");
+    el("status").textContent = unborn ? "not born yet"
+      : dead ? `died of ${p.cause.replace("_", " ")}, ${when(p.died).toLowerCase()}`
+      : (me && me.asleep ? "asleep" : "awake") + `, expected to live about ${Math.round(p.lifespan / TPD)} days`;
+    el("age").textContent = `${ageDays} days`;
+    el("gen").textContent = p.generation;
+    const kids = LIVE ? p.children : p.children.filter(c => DATA.people[c] && DATA.people[c].born <= t);
+    el("kids").textContent = kids.length;
+
+    const bars = el("bars");
+    bars.innerHTML = "";
+    for (const [name, key, color] of [["Energy", "energy", "--energy"], ["Water", "water", "--water"],
+                                      ["Health", "health", "--health"], ["Rested", "rest", "--rest"]]) {
+      const v = me ? me[key] : 0;
+      const row = document.createElement("div");
+      row.className = "bar";
+      row.innerHTML = `<span>${name}</span><div class="track"><div class="fill" style="width:${v}%;background:var(${color})"></div></div><span>${me ? v + "%" : "–"}</span>`;
+      bars.appendChild(row);
+    }
+
+    const fam = el("family");
+    const famKey = [s.followed, p.parent, isAlive(p.parent, t), ...kids.map(c => c + ":" + isAlive(c, t))].join(",");
+    if (fam.dataset.key !== famKey) {
+      fam.dataset.key = famKey;
+      fam.innerHTML = "";
+      const tag = text => { const s = document.createElement("span"); s.className = "status"; s.textContent = text; return s; };
+      if (p.parent >= 0) fam.append(tag("parent"), chip(p.parent, t));
+      if (kids.length) fam.append(tag("children"), ...kids.map(c => chip(c, t)));
+      if (p.parent < 0 && !kids.length) { const s = tag("a founder, no children yet"); s.className = "empty"; fam.append(s); }
+    }
+
+    el("wary-box").hidden = !p.wary;
+    if (p.wary) {
+      const box = el("wary");
+      box.innerHTML = p.wary.length ? "" : '<span class="empty">nothing yet</span>';
+      for (const [look, level] of p.wary) {
+        const row = document.createElement("div");
+        row.className = "wary-row";
+        row.innerHTML = `<span></span><div class="track"><div class="fill" style="width:${Math.round(level * 100)}%;background:var(--danger)"></div></div>`;
+        row.firstChild.textContent = look;
+        box.appendChild(row);
+      }
+    }
+
+    const story = el("story");
+    const seen = p.events.filter(e => e[0] <= t);
+    const key = s.followed + ":" + seen.length;
+    if (story.dataset.key !== key) {
+      story.dataset.key = key;
+      story.innerHTML = seen.length ? "" : '<div><time></time><p class="empty">Nothing yet.</p></div>';
+      for (let k = seen.length - 1; k >= 0; k--) {
+        const [tick, text] = seen[k];
+        const row = document.createElement("div");
+        const bad = /sick|Died|die \(|Parched|Starving|despite|Collapsed|Woke in the night/.test(text);
+        row.innerHTML = `<time>${stamp(tick)}</time><p${bad ? ' class="bad"' : ""}></p>`;
+        row.querySelector("p").textContent = text;
+        story.appendChild(row);
+      }
+    }
+
+    const list = el("people");
+    const ids = s.agents.map(a => a.id).sort((a, b) => a - b);
+    const listKey = s.followed + ":" + ids.join(",");
+    if (list.dataset.key !== listKey) {
+      list.dataset.key = listKey;
+      list.innerHTML = "";
+      ids.forEach(id => list.appendChild(chip(id, t)));
+    }
+  }
+
+  function render() {
+    if (!state) return;
+    draw();
+    panel();
+    if (!LIVE) el("scrub").value = frame;
+  }
+
+  // ---- interaction ----
+  function follow(id) {
+    auto = false; el("auto").checked = false;
+    if (LIVE) { control("follow=" + id); return; }
+    followed = id;
+    state = replayState(frame);
+    render();
+  }
+  function goTo(i) {
+    frame = Math.max(0, Math.min(frames.length - 1, i));
+    state = replayState(frame);
+    render();
+  }
+
+  const speed = el("speed");
+  const speeds = LIVE ? DATA.speeds.map(h => [h, h < 24 ? `${h} hour${h > 1 ? "s" : ""} / sec` : h < 168 ? `${h / 24} day${h > 24 ? "s" : ""} / sec` : `${Math.round(h / 24)} days / sec`])
+                      : [[4, "1 day / sec"], [28, "1 week / sec"], [120, "1 month / sec"]];
+  for (const [v, label] of speeds) speed.add(new Option(label, v));
+  speed.value = LIVE ? 24 : 28;
+
+  el("play").addEventListener("click", () => {
+    if (LIVE) { control("paused=" + (playing ? 1 : 0)); return; }
+    if (frame >= frames.length - 1) goTo(0);
+    playing = !playing;
+    el("play").textContent = playing ? "Pause" : "Play";
+  });
+  speed.addEventListener("change", () => { if (LIVE) control("speed=" + speed.value); });
+  el("auto").addEventListener("change", e => {
+    auto = e.target.checked;
+    if (LIVE) control("auto=" + (auto ? 1 : 0)); else goTo(frame);
+  });
+  for (const box of [el("people"), el("family")]) {
+    box.addEventListener("click", e => {
+      const b = e.target.closest("[data-id]");
+      if (b) follow(Number(b.dataset.id));
+    });
+  }
+  canvas.addEventListener("click", e => {
+    if (!state) return;
+    const r = canvas.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+    let best = null, dist = 2.5;
+    for (const a of state.agents) {
+      const d = Math.hypot(a.x + 0.5 - x, a.y + 0.5 - y);
+      if (d < dist) { best = a; dist = d; }
+    }
+    if (best) follow(best.id);
+  });
+
+  function fit() {
+    const px = Math.round(canvas.getBoundingClientRect().width * (window.devicePixelRatio || 1));
+    if (px > 0 && canvas.width !== px) { canvas.width = canvas.height = px; render(); }
+  }
+  window.addEventListener("resize", fit);
+
+  if (LIVE) {
+    el("badge").textContent = "live"; el("badge").classList.add("live");
+    el("scrub").hidden = true;
+    el("sub").textContent = `Running now on your computer: seed ${DATA.seed}, lives of about ${DATA.lifespanYears} years. Click anyone to follow them.`;
+    poll();
+    setInterval(poll, 100);
+  } else {
+    const scrub = el("scrub");
+    scrub.max = frames.length - 1;
+    scrub.addEventListener("input", () => goTo(Number(scrub.value)));
+    const years = (frames.length * DATA.frameEvery / TPD / 365).toFixed(1);
+    el("sub").textContent = `A recorded run: seed ${DATA.seed}, ${years} years, lives of about ${DATA.lifespanYears} years. Click anyone to follow their life.`;
+    goTo(0);
+    let last = performance.now(), carry = 0;
+    const loop = now => {
+      if (playing) {
+        carry += (now - last) / 1000 * Number(speed.value);
+        const steps = Math.floor(carry);
+        if (steps > 0) {
+          carry -= steps;
+          goTo(frame + steps);
+          if (frame >= frames.length - 1) { playing = false; el("play").textContent = "Play"; }
+        }
+      }
+      last = now;
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  fit();
+})();
+</script>

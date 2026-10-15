@@ -11,7 +11,7 @@ import pygame
 
 from emergent_world.config import format_time
 from emergent_world.sim import Simulation
-from emergent_world.world.grid import FOOD, POISON, WATER
+from emergent_world.world.grid import WATER
 
 CELL = 10
 PANEL = 380
@@ -21,7 +21,8 @@ TEXT_COLOR = (230, 230, 230)
 DIM_TEXT = (150, 150, 160)
 BG_COLOR = (18, 18, 22)
 FOLLOW_RING = (255, 210, 60)
-BAR_COLORS = {"Energy": (220, 170, 60), "Water": (80, 150, 230), "Health": (90, 200, 110)}
+BAR_COLORS = {"Energy": (220, 170, 60), "Water": (80, 150, 230), "Health": (90, 200, 110),
+              "Rested": (150, 130, 225)}
 
 
 def _agent_color(health: float, max_health: float) -> tuple:
@@ -90,20 +91,29 @@ def _draw(screen, font, sim: Simulation, speed: int, paused: bool):
                 pygame.draw.rect(screen, WATER_COLOR, rect)
                 continue
             pygame.draw.rect(screen, GRASS_COLOR, rect)
-            plant = world.plants[x, y]
-            if plant == FOOD:
-                pygame.draw.rect(screen, c.food_color, (x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4))
-            elif plant == POISON:
-                pygame.draw.rect(screen, c.poison_color, (x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4))
+            kind = c.item(int(world.plants[x, y]))
+            if kind is not None:
+                pygame.draw.rect(screen, kind.color, (x * CELL + 2, y * CELL + 2, CELL - 4, CELL - 4))
 
     followed = sim.by_id.get(sim.followed_id) if sim.followed_id is not None else None
+    climate = sim.climate
+    if climate is not None:
+        # Night falls over the map; fog and storms dim it further.
+        dark = (1 - climate.light) * 0.7 + {"fog": 0.2, "storm": 0.2}.get(climate.weather, 0)
+        if dark > 0:
+            shade = pygame.Surface((world.width * CELL, world.height * CELL), pygame.SRCALPHA)
+            shade.fill((8, 12, 30, int(255 * min(dark, 0.85))))
+            screen.blit(shade, (0, 0))
     for agent in sim.living:
         center = (agent.x * CELL + CELL // 2, agent.y * CELL + CELL // 2)
-        pygame.draw.circle(screen, _agent_color(agent.health, c.max_health), center, CELL // 2)
+        if agent.asleep:
+            pygame.draw.circle(screen, (150, 140, 200), center, CELL // 2 - 1)
+        else:
+            pygame.draw.circle(screen, _agent_color(agent.health, c.max_health), center, CELL // 2)
     if followed is not None and followed.alive:
         center = (followed.x * CELL + CELL // 2, followed.y * CELL + CELL // 2)
         pygame.draw.circle(screen, FOLLOW_RING, center, CELL, 2)
-        pygame.draw.circle(screen, FOLLOW_RING, center, c.vision_range * CELL, 1)  # how far they see
+        pygame.draw.circle(screen, FOLLOW_RING, center, sim.vision_reach * CELL, 1)  # how far they see now
 
     _draw_panel(screen, font, sim, followed, speed, paused)
 
@@ -120,20 +130,23 @@ def _draw_panel(screen, font, sim, followed, speed, paused):
 
     line(f"{format_time(sim.tick_count).capitalize()}   {len(sim.living)} alive")
     line(f"{speed} hours/sec" + ("   [PAUSED]" if paused else ""), DIM_TEXT)
+    if sim.climate is not None:
+        line(f"{sim.tick_count % 24:02d}:00  {sim.climate.describe()}", DIM_TEXT)
     y += 8
 
     if followed is None:
         line("Click an agent to follow them.", DIM_TEXT)
         return
 
-    line(f"Following #{followed.id}", FOLLOW_RING)
+    line(f"Following #{followed.id}" + ("  (asleep)" if followed.asleep else ""), FOLLOW_RING)
     line(f"Age {followed.age // 24} days of ~{followed.lifespan // 24}   generation {followed.generation}")
     family = [sim.by_id[i] for i in followed.kin if i in sim.by_id and sim.by_id[i].alive]
     line(f"Children {followed.children}   living family {len(family)}")
     y += 4
     for label, value, top in (("Energy", followed.energy, c.max_energy),
                               ("Water", followed.water, c.max_water),
-                              ("Health", followed.health, c.max_health)):
+                              ("Health", followed.health, c.max_health),
+                              ("Rested", 1 - followed.fatigue, 1.0)):
         screen.blit(font.render(f"{label:<7}", True, DIM_TEXT), (x0, y))
         pygame.draw.rect(screen, (50, 50, 58), (x0 + 70, y + 3, 200, 11))
         pygame.draw.rect(screen, BAR_COLORS[label], (x0 + 70, y + 3, int(200 * max(0, value) / top), 11))

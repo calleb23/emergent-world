@@ -18,7 +18,8 @@ Needs Python 3.10 or newer.
 ## Run
 
 ```
-python main.py                  # watch it live, following one agent (click another to switch)
+python -m emergent_world.live   # watch it live in your browser (opens http://localhost:8765)
+python main.py                  # or watch it live in a pygame window
 python main.py --headless --story   # print the followed agent's life story as it happens
 python -m emergent_world.replay     # record 3 years into replay.html: open it in any browser
 python main.py --people 6       # how many founders start the world (default 12, cap 40)
@@ -72,14 +73,33 @@ world after five lifetimes.
 ## What's in the world
 
 - 64x64 grid of grass with a dozen small ponds.
-- Food plants regrow on empty grass. About 10% of new plants are poisonous and only
-  *look* slightly different (a slightly yellower green).
-- Eating poison feels like food at first; sickness starts 25 hours later.
-- Plants wilt over time, so uneaten poison plants don't take over the map.
-- Agents have energy, water, health and a lifespan. They can move, eat, drink (next to
-  water) or rest. They die of starvation, dehydration, poison or old age.
+- **Items** (`world/items.py`): one table row per kind, saying how it looks, what eating
+  it does, where it appears and how long it lasts. Agents only ever see the colors.
+
+  | Item | Eating it | Where |
+  |---|---|---|
+  | green plant | good food | anywhere |
+  | yellow-green plant | sick a day later | anywhere |
+  | red berry | small, sweet | near water |
+  | purple berry | sick within hours | near water |
+  | brown mushroom | good food | near water |
+  | pale mushroom | badly sick 40 hours later, so it's hard to tell why | near water |
+  | nut | rich food, rare | far from water |
+  | grey rock, stick | can't be eaten; agents learn to stop trying | anywhere |
+
+- **Day and night, seasons and weather** (`world/climate.py`): 24-hour days; at night
+  agents see only a few tiles. Four 91-day seasons: spring grows fastest, summer heat
+  makes agents thirsty, winter barely grows and its cold burns energy. Weather shifts
+  every few hours: clear, cloudy, rain (eases thirst, helps growth), storm, fog, and
+  snow in winter. Storms, fog and snow cut visibility.
+- **Sleep:** tiredness builds while awake. Tired agents sleep from dusk to dawn, wake
+  early if thirst, hunger or sickness gets bad, and collapse if pushed past exhaustion.
+  Sleeping slows hunger and thirst and doubles healing.
+- Agents have energy, water, health, tiredness and a lifespan. They can move, eat, drink
+  (next to water) or rest. They die of starvation, dehydration, poison, exhaustion or
+  old age.
 - **Senses** (`agents/senses.py`): 8 vision rays, each with a ground layer (water) and an
-  object layer (plants, agents), reporting color and closeness only, never labels. Plus
+  object layer (items, agents), reporting color and closeness only, never labels. Plus
   what's underfoot, touching liquid, energy, water, health and pain.
 - **Brains** (`agents/brain.py`): 72 inputs, 16 hidden, 7 actions (about 1,300 weights).
   All brains run as one batched NumPy operation.
@@ -142,8 +162,13 @@ foods to avoid, keyed only by what they look like.
   same day as the poison isn't blamed for long).
 - Agents notice what relatives eat nearby; if they see one die of poison, they blame
   what they saw it eat.
-- Aversion holds back the urge to eat, including random tries. How strongly is an
-  inherited gene (`aversion_gain`). Aversion fades slowly (halves in about 140 days).
+- Aversion holds back the urge to eat, including random tries, and steers agents away
+  from foods they're wary of when they see them. How strongly is an inherited gene
+  (`aversion_gain`). Aversion fades slowly (halves in about 140 days).
+- Biting a rock or stick makes it mildly unappealing, so agents learn to stop trying.
+- Hunger overrides disgust: below half energy, wariness fades, down to a tenth when
+  starving. Without this, an agent that wrongly blames its main food (easy after the
+  slow pale mushroom) can starve rather than ever learn the food was safe.
 
 Result (seed 0, 1-year lives, 4 simulated years, memory on vs off):
 
@@ -161,8 +186,8 @@ isn't complete.
 
 ## Next steps
 
-- **Make poison avoidance more complete.** Life stories show agents eating the plant
-  that made them sick again and again. The memory only stops the final bite; it should
-  also steer agents away from foods they're wary of.
+- Steering away from foods in sight cut poison deaths by 23% (seed 0, 4 years): agents
+  who got sick now eat poison in 5.2% of meals (was 7.8%), those who watched a relative
+  die 4.0% (was 7.6%).
 - Prehistory still uses fast breeding (about eight children per five-week life); the
   founders haven't evolved under the small world's slower breeding.

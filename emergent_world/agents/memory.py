@@ -53,6 +53,10 @@ class FoodMemory:
             if color in self.aversion:
                 self.aversion[color] *= (1.0 - safety)
 
+    def bit_inedible(self, color, strength: float):
+        """Bit something that can't be eaten: it becomes a little less appealing."""
+        self.aversion[color] = min(1.0, self.level(color) + strength)
+
     def saw_kin_eat(self, tick: int, eater_id: int, color):
         self.seen_kin_meals.append((tick, eater_id, color))
 

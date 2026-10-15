@@ -1,11 +1,12 @@
 """What an agent perceives. Only surfaces: colors, distances, its own body.
 
-No labels and no object IDs: a poison plant is just a slightly different green.
+No labels and no object IDs: a poison plant is just a slightly different green,
+and a rock is just grey.
 """
 
 import numpy as np
 
-from emergent_world.world.grid import FOOD, LIQUIDS, POISON, WATER
+from emergent_world.world.grid import LIQUIDS, WATER
 
 # Eight compass directions, one vision ray each.
 RAY_DIRECTIONS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
@@ -28,6 +29,11 @@ def _norm(color) -> tuple:
     return tuple(channel / 255.0 for channel in color)
 
 
+def palette(config) -> np.ndarray:
+    """Colors by item id, normalized: row 0 is bare grass, row i is item i."""
+    return np.array([_norm(GRASS_COLOR)] + [_norm(k.color) for k in config.items], dtype=np.float32)
+
+
 def build_occupancy(world, agents) -> np.ndarray:
     """A grid marking which tiles hold a living agent, for vision."""
     occupied = np.zeros((world.width, world.height), dtype=bool)
@@ -36,11 +42,15 @@ def build_occupancy(world, agents) -> np.ndarray:
     return occupied
 
 
-def sense_all(agents: list, world, config) -> np.ndarray:
+def sense_all(agents: list, world, config, reach: int | None = None) -> np.ndarray:
     """Senses for every agent at once, shape (agents, INPUT_SIZE).
 
     The same result as calling `sense` per agent, but each ray step is one NumPy
     operation across all agents instead of a Python loop per agent.
+
+    `reach` limits how far rays travel (shorter at night and in bad weather);
+    closeness is still measured against the full vision range, so a thing two
+    tiles away looks equally close by day or night.
     """
     n = len(agents)
     inputs = np.zeros((n, INPUT_SIZE), dtype=np.float32)
@@ -49,14 +59,14 @@ def sense_all(agents: list, world, config) -> np.ndarray:
     xs = np.array([a.x for a in agents])
     ys = np.array([a.y for a in agents])
     occupied = build_occupancy(world, agents)
-    food, poison = np.array(_norm(config.food_color)), np.array(_norm(config.poison_color))
+    colors = palette(config)
     water, others = np.array(_norm(WATER_COLOR)), np.array(_norm(AGENT_COLOR))
 
     for r, (dx, dy) in enumerate(RAY_DIRECTIONS):
         i = r * RAY_SIZE
         ground_found = np.zeros(n, dtype=bool)
         object_found = np.zeros(n, dtype=bool)
-        for step in range(1, config.vision_range + 1):
+        for step in range(1, (reach or config.vision_range) + 1):
             px, py = xs + dx * step, ys + dy * step
             inside = (px >= 0) & (px < world.width) & (py >= 0) & (py < world.height)
             cx, cy = np.clip(px, 0, world.width - 1), np.clip(py, 0, world.height - 1)
@@ -69,18 +79,15 @@ def sense_all(agents: list, world, config) -> np.ndarray:
 
             agent_there = occupied[cx, cy]
             plant = world.plants[cx, cy]
-            new_object = inside & ~object_found & (agent_there | (plant == FOOD) | (plant == POISON))
-            color = np.where(agent_there[:, None], others,
-                             np.where((plant == FOOD)[:, None], food, poison))
+            new_object = inside & ~object_found & (agent_there | (plant > 0))
+            color = np.where(agent_there[:, None], others, colors[plant])
             inputs[new_object, i + 4:i + 7] = color[new_object]
             inputs[new_object, i + 7] = closeness
             object_found |= new_object
 
     i = UNDERFOOT
     underfoot = world.plants[xs, ys]
-    inputs[:, i:i + 3] = np.where((underfoot == FOOD)[:, None], food,
-                                  np.where((underfoot == POISON)[:, None], poison,
-                                           np.array(_norm(GRASS_COLOR))))
+    inputs[:, i:i + 3] = colors[underfoot]
     touching = np.zeros(n, dtype=bool)
     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
         px, py = xs + dx, ys + dy
@@ -99,7 +106,7 @@ def sense_all(agents: list, world, config) -> np.ndarray:
 def sense(agent, world, occupied: np.ndarray, config) -> np.ndarray:
     """Senses for one agent. The readable reference version of `sense_all`."""
     inputs = np.zeros(INPUT_SIZE, dtype=np.float32)
-    plant_colors = {FOOD: _norm(config.food_color), POISON: _norm(config.poison_color)}
+    plant_colors = {i + 1: _norm(k.color) for i, k in enumerate(config.items)}
     water, others = _norm(WATER_COLOR), _norm(AGENT_COLOR)
 
     i = 0
