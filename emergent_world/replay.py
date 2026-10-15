@@ -95,7 +95,7 @@ def main():
     parser.add_argument("--years", type=float, default=2.0, help="average lifespan in years")
     parser.add_argument("--people", type=int, default=30)
     parser.add_argument("--max-people", type=int, default=80)
-    parser.add_argument("--children", type=float, default=3.0)
+    parser.add_argument("--children", type=float, default=4.5)
     parser.add_argument("--founders", default="founders.npz")
     parser.add_argument("--out", default="replay.html")
     args = parser.parse_args()

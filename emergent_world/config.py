@@ -72,7 +72,7 @@ class Config:
     exhaustion_damage: float = 0.5  # health lost per hour while awake and exhausted
 
     # Body: fat, aging, voice, grief
-    max_fat: float = 60.0           # the most energy an agent can store as fat
+    max_fat: float = 180.0          # the most energy an agent can store as fat (enough to bank for lean weeks)
     store_fat_above: float = 0.85   # energy share above which spare energy is stored as fat
     fat_store_rate: float = 0.5     # energy per hour moved into fat (80% kept)
     burn_fat_below: float = 0.35    # energy share below which fat is burned
@@ -105,7 +105,10 @@ class Config:
     learn_rate: float = 0.01
     # Feelings and people (agents/emotions.py).
     emotions: bool = True           # False: no fear, anger, loneliness or joy (for comparison runs)
-    newcomers_from_living: bool = True   # strangers carry a living adult's learned brain (else a founder's)
+    newcomers_from_living: bool = False  # True: strangers carry a living adult's learned brain; False: a
+                                         # founder's. Founders win long-term (docs/experiments, round 3):
+                                         # a tiny population's brains drift and degrade, and strangers
+                                         # from outside bring fresh genes.
     fear_weight: float = 0.3        # how bad an hour of fear feels
     anger_weight: float = 0.15
     lonely_weight: float = 0.2
@@ -146,7 +149,7 @@ class Config:
     reproduce_cost_water: float = 20.0
     cooldown_fraction: float = 0.10 # share of average lifespan between children
     two_parents: bool = True        # False: anyone can have children alone (old behavior)
-    mate_range: int = 8             # tiles: a partner must be within sight
+    mate_range: int = 16            # tiles: how far apart partners can be (8 starved sparse populations of births)
     mating_pull: float = 2.5        # how strongly adults ready for children are drawn to people in sight
     father_cost_energy: float = 10.0
     child_energy: float = 60.0
@@ -242,7 +245,7 @@ class Config:
         return self
 
     @classmethod
-    def small_world(cls, people: int = 30, max_people: int = 80, children: float = 3.0,
+    def small_world(cls, people: int = 30, max_people: int = 80, children: float = 4.5,
                     years: float = 2.0) -> "Config":
         """The default world for following individual lives: a few founders, long
         lives, about `children` children per lifetime, and top-ups only to

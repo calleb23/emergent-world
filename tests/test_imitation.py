@@ -41,7 +41,8 @@ def test_an_onlooker_leans_toward_what_a_relative_does():
 
 
 def test_newcomers_carry_a_living_brain():
-    c = Config(initial_agents=3, min_population=0, climate=False, newcomer_every_days=1 / 24)
+    c = Config(initial_agents=3, min_population=0, climate=False, newcomer_every_days=1 / 24,
+               newcomers_from_living=True)
     sim = Simulation(c, seed=0)
     for a in sim.agents:
         a.age = c.maturity_age + 1
