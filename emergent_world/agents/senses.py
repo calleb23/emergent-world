@@ -5,7 +5,7 @@ No labels and no object IDs: a poison plant is just a slightly different green.
 
 import numpy as np
 
-from emergent_world.world.grid import FOOD, POISON, WATER
+from emergent_world.world.grid import FOOD, LIQUIDS, POISON, WATER
 
 # Eight compass directions, one vision ray each.
 RAY_DIRECTIONS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
@@ -17,11 +17,11 @@ GRASS_COLOR = (34, 52, 30)
 # Each ray has two layers, because short plants shouldn't hide a lake:
 #   ground layer: the first water it reaches (red, green, blue, closeness)
 #   object layer: the first plant or agent it reaches (red, green, blue, closeness)
-# Then underfoot RGB, touch-water, energy, water, health, pain.
+# Then underfoot RGB, touching liquid, energy, water, health, pain.
 RAY_SIZE = 8
 INPUT_SIZE = len(RAY_DIRECTIONS) * RAY_SIZE + 3 + 1 + 4
 UNDERFOOT = len(RAY_DIRECTIONS) * RAY_SIZE
-TOUCH_WATER = UNDERFOOT + 3
+TOUCH_LIQUID = UNDERFOOT + 3
 
 
 def _norm(color) -> tuple:
@@ -86,12 +86,12 @@ def sense_all(agents: list, world, config) -> np.ndarray:
         px, py = xs + dx, ys + dy
         inside = (px >= 0) & (px < world.width) & (py >= 0) & (py < world.height)
         cx, cy = np.clip(px, 0, world.width - 1), np.clip(py, 0, world.height - 1)
-        touching |= inside & (world.terrain[cx, cy] == WATER)
-    inputs[:, TOUCH_WATER] = touching
-    inputs[:, TOUCH_WATER + 1] = [a.energy / config.max_energy for a in agents]
-    inputs[:, TOUCH_WATER + 2] = [a.water / config.max_water for a in agents]
-    inputs[:, TOUCH_WATER + 3] = [a.health / config.max_health for a in agents]
-    inputs[:, TOUCH_WATER + 4] = [1.0 if any(s.delay == 0 for s in a.sicknesses) else 0.0
+        touching |= inside & np.isin(world.terrain[cx, cy], LIQUIDS)
+    inputs[:, TOUCH_LIQUID] = touching
+    inputs[:, TOUCH_LIQUID + 1] = [a.energy / config.max_energy for a in agents]
+    inputs[:, TOUCH_LIQUID + 2] = [a.water / config.max_water for a in agents]
+    inputs[:, TOUCH_LIQUID + 3] = [a.health / config.max_health for a in agents]
+    inputs[:, TOUCH_LIQUID + 4] = [1.0 if any(s.delay == 0 for s in a.sicknesses) else 0.0
                                   for a in agents]
     return inputs
 
@@ -129,7 +129,7 @@ def sense(agent, world, occupied: np.ndarray, config) -> np.ndarray:
     underfoot = world.plants[agent.x, agent.y]
     inputs[i:i + 3] = plant_colors.get(int(underfoot), _norm(GRASS_COLOR))
     i += 3
-    inputs[i] = 1.0 if world.next_to_water(agent.x, agent.y) else 0.0
+    inputs[i] = 1.0 if world.next_to_liquid(agent.x, agent.y) else 0.0
     i += 1
     inputs[i] = agent.energy / config.max_energy
     inputs[i + 1] = agent.water / config.max_water

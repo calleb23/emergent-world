@@ -2,7 +2,7 @@ import numpy as np
 
 from emergent_world.agents.agent import Action
 from emergent_world.agents.brain import Brain, think
-from emergent_world.agents.senses import (INPUT_SIZE, RAY_SIZE, TOUCH_WATER, UNDERFOOT,
+from emergent_world.agents.senses import (INPUT_SIZE, RAY_SIZE, TOUCH_LIQUID, UNDERFOOT,
                                          build_occupancy, sense)
 from emergent_world.config import Config
 from emergent_world.sim import Simulation
@@ -50,7 +50,7 @@ def test_underfoot_and_touch_senses():
     inputs = sense(agent, sim.world, build_occupancy(sim.world, sim.living), sim.config)
     underfoot = inputs[UNDERFOOT:UNDERFOOT + 3]
     assert np.allclose(underfoot, np.array(sim.config.food_color) / 255)
-    assert inputs[TOUCH_WATER] == 1.0
+    assert inputs[TOUCH_LIQUID] == 1.0
 
 
 def test_think_returns_one_valid_action_per_brain():

@@ -41,17 +41,19 @@ Every run saves `runs/seed_<n>/deaths.csv` (each death with its cause) and
   water) or rest. They die of starvation, dehydration, poison or old age.
 - **Senses** (`agents/senses.py`): 8 vision rays, each with a ground layer (water) and an
   object layer (plants, agents), reporting color and closeness only, never labels. Plus
-  what's underfoot, touching water, energy, water, health and pain.
+  what's underfoot, touching liquid, energy, water, health and pain.
 - **Brains** (`agents/brain.py`): 72 inputs, 16 hidden, 7 actions (about 1,300 weights).
   All brains run as one batched NumPy operation.
 - **Reproduction:** fed, watered adults have a child next to them with a mutated copy of
   their brain.
 - **Garden curriculum:** hunger and thirst drain slowly at first and ramp to full strength.
-- **Instincts** (`instincts.py`, `agents/teacher.py`): a hand-written teacher that drinks,
-  eats and walks toward what it needs, using exactly the agents' senses. Brains are trained
-  to copy it, and every run starts from mutated copies of that brain, like animals born
-  with instincts. The teacher eats anything green, so **it can't tell poison from food**:
-  avoiding poison is left for the agents to discover.
+- **Instincts** (`instincts.py`, `agents/teacher.py`): based on what things physically are,
+  not what they look like. Try to eat any loose solid, drink any liquid, and walk toward
+  them when hungry or thirsty (breathing gases will be automatic once gases exist). A
+  hand-written teacher does this using exactly the agents' senses; brains are trained to
+  copy it, and every run starts from mutated copies, like animals born with instincts.
+  The instincts don't know which solids are food, so **poison gets eaten like anything
+  else**: learning what's worth eating is left to the agents.
 - **Bootstrap:** while the population is below a minimum, it's topped up with mutated
   copies of the fittest recent brains plus some fresh random ones.
 

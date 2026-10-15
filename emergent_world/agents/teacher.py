@@ -1,18 +1,24 @@
 """A hand-written teacher used to give first-generation brains basic instincts.
 
 It decides from exactly the senses agents get, so a brain can learn to copy it.
-It knows how to drink, eat and walk toward what it needs, and nothing else.
-In particular it can't tell poison from food: it eats anything green, so
-avoiding poison is still left for the agents to discover.
+Its instincts are about what things physically are, not what they look like:
+
+- try to eat any loose solid object it's standing on
+- drink any liquid it's touching
+- when hungry or thirsty, walk toward the nearest loose object or liquid in sight
+- (breathing gases will be automatic once the world has gases)
+
+It has no idea which solids are actually food. Poison gets eaten like anything
+else, so learning what's worth eating is left to the agents.
 """
 
 import numpy as np
 
 from emergent_world.agents.agent import Action
 from emergent_world.agents.senses import (AGENT_COLOR, GRASS_COLOR, RAY_DIRECTIONS, RAY_SIZE,
-                                          TOUCH_WATER, UNDERFOOT, _norm, sense_all)
+                                          TOUCH_LIQUID, UNDERFOOT, _norm, sense_all)
 
-ENERGY, WATER = TOUCH_WATER + 1, TOUCH_WATER + 2
+ENERGY_LEVEL, WATER_LEVEL = TOUCH_LIQUID + 1, TOUCH_LIQUID + 2
 
 
 def _step_toward(dx: int, dy: int) -> Action:
@@ -24,17 +30,18 @@ def _step_toward(dx: int, dy: int) -> Action:
 
 def teacher_action(x: np.ndarray, rng: np.random.Generator) -> Action:
     """The teacher's choice for one agent's sense vector."""
-    on_plant = not np.allclose(x[UNDERFOOT:UNDERFOOT + 3], _norm(GRASS_COLOR))
-    if x[TOUCH_WATER] and x[WATER] < 0.9:
+    # Anything underfoot other than the bare ground is a loose solid object.
+    on_object = not np.allclose(x[UNDERFOOT:UNDERFOOT + 3], _norm(GRASS_COLOR))
+    if x[TOUCH_LIQUID] and x[WATER_LEVEL] < 0.9:
         return Action.DRINK
-    if on_plant and x[ENERGY] < 0.9:
+    if on_object and x[ENERGY_LEVEL] < 0.9:
         return Action.EAT
 
-    if x[WATER] < x[ENERGY]:
-        # Thirstier than hungry: head for the closest water in sight.
+    if x[WATER_LEVEL] < x[ENERGY_LEVEL]:
+        # Thirstier than hungry: head for the closest liquid in sight.
         closeness = [x[r * RAY_SIZE + 3] for r in range(len(RAY_DIRECTIONS))]
     else:
-        # Hungrier: head for the closest plant in sight (any green, not other agents).
+        # Hungrier: head for the closest loose object in sight (not other creatures).
         agent_color = np.array(_norm(AGENT_COLOR))
         closeness = []
         for r in range(len(RAY_DIRECTIONS)):

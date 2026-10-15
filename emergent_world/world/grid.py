@@ -4,9 +4,12 @@ import numpy as np
 
 from emergent_world.config import Config
 
-# Terrain types
+# Terrain types, and the physical state of each. Instincts act on the state,
+# not the specific material: agents try to drink any liquid. When the god adds
+# new liquids (juice, swamp water) they join LIQUIDS and agents will try them.
 GRASS = 0
 WATER = 1
+LIQUIDS = (WATER,)
 
 # Plant types
 NO_PLANT = 0
@@ -60,10 +63,10 @@ class World:
     def is_walkable(self, x: int, y: int) -> bool:
         return self.in_bounds(x, y) and self.terrain[x, y] == GRASS
 
-    def next_to_water(self, x: int, y: int) -> bool:
+    def next_to_liquid(self, x: int, y: int) -> bool:
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             nx, ny = x + dx, y + dy
-            if self.in_bounds(nx, ny) and self.terrain[nx, ny] == WATER:
+            if self.in_bounds(nx, ny) and self.terrain[nx, ny] in LIQUIDS:
                 return True
         return False
 

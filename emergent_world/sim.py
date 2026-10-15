@@ -109,7 +109,7 @@ class Simulation:
                 )
                 self.stats.record_meal(agent, "poison")
         elif action == Action.DRINK:
-            if self.world.next_to_water(agent.x, agent.y):
+            if self.world.next_to_liquid(agent.x, agent.y):
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
 
     @property
