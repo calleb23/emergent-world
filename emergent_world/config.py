@@ -114,6 +114,7 @@ class Config:
     lonely_weight: float = 0.2
     loneliness_rate: float = 0.006  # per hour alone, for an average temperament
     lonely_pull: float = 1.0        # lonely people are drawn toward people they can see
+    thirst_urge: float = 5.0        # beside water, urge to drink, at its strongest when parched (0 = off)
     hunger_urge: float = 5.0        # urge to bite what's underfoot, at its strongest when starving (0 = off)
     hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
     call_carries_fear: bool = True  # a cry's tone gives away the caller's fear

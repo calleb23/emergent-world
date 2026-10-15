@@ -69,3 +69,24 @@ def test_watching_family_eat_a_food_eases_wariness_of_it():
     a.memory.aversion[kind.color] = 0.5
     sim._consume(b, kind)
     assert a.memory.aversion[kind.color] < 0.5
+
+
+def test_thirst_urges_a_drink_beside_water_and_draws_toward_water_in_sight():
+    import numpy as np
+    from emergent_world.agents.agent import Action
+    from emergent_world.agents.senses import TOUCH_LIQUID, RAY_SIZE, sense_all
+    sim, a = _sim()
+    c = sim.config
+    a.water = 0.05 * c.max_water
+    inputs = np.zeros((1, 200), dtype=np.float32)
+    inputs[0, TOUCH_LIQUID] = 1.0
+    pol = sim.policy
+    # The urge alone: beside water and parched, drinking is pulled up hard.
+    beside = inputs[:, TOUCH_LIQUID] > 0
+    urge = c.thirst_urge * beside * np.clip((1 - a.water / c.max_water - 0.3) / 0.7, 0, 1)
+    assert urge[0] > 4
+    # Water seen along the east ray (index 2) pulls a parched person east.
+    rays = np.zeros((1, 200), dtype=np.float32)
+    rays[0, 2 * RAY_SIZE + 3] = 0.8
+    pull = BrainPolicy.place_pull([a], rays, c, sim.by_id)
+    assert pull[0, Action.EAST] > 0 and pull[0, Action.WEST] == 0

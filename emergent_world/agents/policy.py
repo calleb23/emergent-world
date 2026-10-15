@@ -5,7 +5,7 @@ import numpy as np
 from emergent_world.agents import genes
 from emergent_world.agents.agent import Action
 from emergent_world.agents.brain import OUTPUT_SIZE, imitate, learn, think
-from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, sense_all
+from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, TOUCH_LIQUID, sense_all
 
 
 MOVE_ACTIONS = (Action.NORTH, Action.SOUTH, Action.EAST, Action.WEST, Action.REST)
@@ -49,6 +49,11 @@ class BrainPolicy:
         useless_eat, useless_steer = self.useless_penalty(agents, world, inputs, config)
         penalties[:, Action.EAT] += useless_eat
         penalties[:, :4] += useless_steer
+        # Thirst itself: beside water, an urge to drink that grows as thirst does.
+        if config.thirst_urge:
+            thirst = np.array([1.0 - a.water / config.max_water for a in agents], dtype=np.float32)
+            beside = inputs[:, TOUCH_LIQUID] > 0
+            penalties[:, Action.DRINK] -= config.thirst_urge * beside * np.clip((thirst - 0.3) / 0.7, 0.0, 1.0)
         trust_eat, trust_steer = self.trust_pull(agents, world, inputs, config)
         penalties[:, Action.EAT] -= trust_eat
         penalties[:, :4] -= trust_steer
@@ -207,11 +212,17 @@ class BrainPolicy:
                 if parent is not None and parent.alive:
                     dx, dy = parent.x - agent.x, parent.y - agent.y
                     if max(abs(dx), abs(dy)) > 2:
-                        fed = max(0.2, agent.energy / config.max_energy)   # a hungry child stops to eat
+                        fed = max(0.2, min(agent.energy / config.max_energy,   # a hungry or thirsty
+                                           agent.water / config.max_water))      # child stops for it
                         for m in cls._toward(dx, dy):
                             pull[i, m] += config.follow_pull * fed
             water_need = 1.0 - agent.water / config.max_water
             water_seen = any(inputs[i, r * RAY_SIZE + 3] > 0 for r in rays)
+            if water_need > 0.4 and water_seen and config.thirst_urge:
+                # Thirst draws you to water you can see: toward the closest of it.
+                best = max(rays, key=lambda r: inputs[i, r * RAY_SIZE + 3])
+                for m in cls._ray_moves(best):
+                    pull[i, m] += config.homing_pull * water_need * 2
             if water_need > 0.4 and not water_seen and agent.memory.water_at is not None:
                 tx, ty = agent.memory.water_at
                 for m in cls._toward(tx - agent.x, ty - agent.y):
@@ -257,7 +268,8 @@ class BrainPolicy:
             ready = (agent.age >= config.maturity_age and agent.reproduce_cooldown == 0
                      and agent.energy >= config.reproduce_energy and agent.grief == 0)
             strength = (config.mating_pull if ready else 0.0) + config.lonely_pull * agent.loneliness
-            strength *= max(0.2, agent.energy / config.max_energy)   # hunger comes before company
+            strength *= max(0.2, min(agent.energy / config.max_energy,
+                                     agent.water / config.max_water))   # hunger and thirst come before company
             if strength < 0.05:
                 continue
             for r, (dx, dy) in enumerate(RAY_DIRECTIONS):
