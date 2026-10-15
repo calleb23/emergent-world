@@ -5,6 +5,21 @@ This repo currently covers **build steps 1–4**: a grid world you can watch, ag
 bodies and needs, honest senses, tiny neural-network brains with basic instincts, evolution,
 and a founder population evolved in a fast "prehistory" that starts long-lived worlds.
 
+## Quick start (Windows)
+
+Needs [Python](https://www.python.org/downloads/) and [Git](https://git-scm.com/download/win).
+In a Command Prompt:
+
+```
+cd %USERPROFILE%\Documents
+git clone https://github.com/calleb23/emergent-world
+```
+
+Then open `Documents\emergent-world` and double-click **start.bat**. It pulls the latest code,
+opens the live view in your browser, and keeps checking GitHub every two minutes: when new
+code arrives it pulls it, restarts, and the browser tab reloads by itself. (On macOS or
+Linux, run `./start.sh`.)
+
 ## Setup (Windows, macOS or Linux)
 
 ```

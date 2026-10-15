@@ -241,6 +241,7 @@ const DATA = /*VIEWER_DATA*/null;
       const r = await fetch("/state", { cache: "no-store" });
       const s = await r.json();
       if (!auto) s.followed = s.followed;   // server keeps your choice
+      if (DATA.version && s.version && s.version !== DATA.version) { location.reload(); return; }
       followed = s.followed;
       auto = s.auto; el("auto").checked = auto;
       s.plants = Uint8Array.from(s.plants, ch => ch.charCodeAt(0) - 48);
@@ -252,7 +253,7 @@ const DATA = /*VIEWER_DATA*/null;
       el("note").hidden = true; liveFailed = false;
       render();
     } catch (e) {
-      if (!liveFailed) { el("note").textContent = "Lost contact with the simulation. Is python -m emergent_world.live still running?"; el("note").hidden = false; }
+      if (!liveFailed) { el("note").textContent = "Lost contact with the simulation. If it's updating to new code it will be back in a few seconds; otherwise check that it's still running."; el("note").hidden = false; }
       liveFailed = true;
     } finally { liveBusy = false; }
   }
@@ -467,7 +468,8 @@ const DATA = /*VIEWER_DATA*/null;
   if (LIVE) {
     el("badge").textContent = "live"; el("badge").classList.add("live");
     el("scrub").hidden = true;
-    el("sub").textContent = `Running now on your computer: seed ${DATA.seed}, lives of about ${DATA.lifespanYears} years. Click anyone to follow them.`;
+    el("sub").textContent = `Running now on your computer: seed ${DATA.seed}, lives of about ${DATA.lifespanYears} years. Click anyone to follow them.`
+      + (DATA.version ? ` Version ${DATA.version}: ${DATA.change}` : "");
     poll();
     setInterval(poll, 100);
   } else {

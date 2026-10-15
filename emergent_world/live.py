@@ -10,6 +10,8 @@ Uses only Python's standard library for the web server (no extra installs).
 
 import argparse
 import json
+import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -22,6 +24,42 @@ from emergent_world.sim import Simulation
 from emergent_world.webview import agent_rows, climate_info, page, person, plant_string, static_info
 
 SPEEDS = (1, 6, 24, 96, 240, 720)   # hours per second
+REPO = Path(__file__).resolve().parent.parent
+RESTART_CODE = 3   # exit code meaning "new code pulled, start me again"
+
+
+def _git(*args) -> str:
+    """Run git in the project folder; returns its output, or "" if git isn't there."""
+    try:
+        out = subprocess.run(["git", "-C", str(REPO), *args], capture_output=True, text=True, timeout=60)
+        return out.stdout.strip() if out.returncode == 0 else ""
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def version() -> dict:
+    return {"version": _git("rev-parse", "--short", "HEAD") or "unknown",
+            "change": _git("log", "-1", "--pretty=%s")}
+
+
+def watch_for_updates(server, every_seconds: int):
+    """Every so often, check GitHub for newer code. If there is some, pull it and
+    stop the server so main() restarts on the new code (the page reloads itself)."""
+    def loop():
+        while True:
+            time.sleep(every_seconds)
+            _git("fetch", "--quiet")
+            behind = _git("rev-list", "--count", "HEAD..@{u}")
+            if behind.isdigit() and int(behind) > 0:
+                pulled = subprocess.run(["git", "-C", str(REPO), "pull", "--ff-only", "--quiet"])
+                if pulled.returncode == 0:
+                    print(f"Updated to: {_git('log', '-1', '--pretty=%s')}. Restarting...", flush=True)
+                    server.restart = True
+                    server.shutdown()
+                    return
+                print("New code is on GitHub, but pulling it failed (local changes?). "
+                      "Run git pull yourself to update.", flush=True)
+    threading.Thread(target=loop, daemon=True).start()
 
 
 class LiveWorld:
@@ -89,8 +127,10 @@ class LiveWorld:
                     self.auto = False
 
 
-def serve(world: LiveWorld, port: int, open_browser: bool):
-    home = page({**static_info(world.sim, "live"), "speeds": SPEEDS}).encode()
+def serve(world: LiveWorld, port: int, open_browser: bool, auto_update: int = 0) -> bool:
+    """Serve the live view. Returns True if it stopped to restart on newer code."""
+    about = version()
+    home = page({**static_info(world.sim, "live"), "speeds": SPEEDS, **about}).encode()
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, body: bytes, kind: str):
@@ -105,7 +145,8 @@ def serve(world: LiveWorld, port: int, open_browser: bool):
             if path == "/":
                 self._send(home, "text/html; charset=utf-8")
             elif path == "/state":
-                self._send(json.dumps(world.state(), separators=(",", ":")).encode(), "application/json")
+                state = {**world.state(), "version": about["version"]}
+                self._send(json.dumps(state, separators=(",", ":")).encode(), "application/json")
             else:
                 self.send_error(404)
 
@@ -120,15 +161,22 @@ def serve(world: LiveWorld, port: int, open_browser: bool):
         def log_message(self, *args):   # keep the terminal quiet
             pass
 
+    ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server.restart = False
     url = f"http://localhost:{port}"
-    print(f"Watching live at {url}  (Ctrl+C to stop)")
+    print(f"Watching live at {url}  (version {about['version']}: {about['change']})")
+    print("Ctrl+C to stop." + (f" Checking GitHub for updates every {auto_update / 60:g} minutes." if auto_update else ""))
     if open_browser:
         webbrowser.open(url)
+    if auto_update:
+        watch_for_updates(server, auto_update)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
+    server.server_close()
+    return server.restart
 
 
 def main():
@@ -141,6 +189,9 @@ def main():
     parser.add_argument("--children", type=float, default=3.0)
     parser.add_argument("--founders", default="founders.npz")
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+    parser.add_argument("--auto-update", type=float, default=0, metavar="MINUTES",
+                        help="check GitHub for newer code every MINUTES; when there is some, pull it "
+                             "and exit with code 3 so start.bat / start.sh restart on it")
     args = parser.parse_args()
 
     config = Config.small_world(args.people, args.max_people, args.children, args.years)
@@ -148,7 +199,10 @@ def main():
         config.founders_path = args.founders
     sim = Simulation(config, seed=args.seed)
     sim.follow(max(sim.agents, key=lambda a: a.age, default=None))
-    serve(LiveWorld(sim), args.port, not args.no_browser)
+    if serve(LiveWorld(sim), args.port, not args.no_browser, int(args.auto_update * 60)):
+        # New code was pulled. Exit with code 3: start.bat / start.sh start it again
+        # on the new code, and the open page reloads itself when it reconnects.
+        sys.exit(RESTART_CODE)
 
 
 if __name__ == "__main__":
