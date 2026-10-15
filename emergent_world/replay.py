@@ -13,7 +13,7 @@ from pathlib import Path
 
 from emergent_world.config import TICKS_PER_DAY, TICKS_PER_YEAR, Config
 from emergent_world.sim import Simulation
-from emergent_world.webview import agent_rows, climate_info, page, person, plant_string, static_info
+from emergent_world.webview import agent_rows, climate_info, history, page, person, plant_string, static_info
 
 FRAME_EVERY = 6        # ticks (hours) between recorded frames
 KEYFRAME_DAYS = 10     # a full plant map every this many days; changes in between
@@ -69,6 +69,7 @@ def record(config: Config, seed: int, run_years: float, founders: str) -> dict:
         "plantChanges": plant_changes,
         "frames": frames,
         "people": {a.id: person(a, sim.tick_count) for a in known.values()},
+        "history": history(sim),
     })
     return data
 

@@ -122,6 +122,10 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
         <span class="label">Alive now</span>
         <div class="row" id="people"></div>
       </div>
+      <div class="people">
+        <span class="label">World history, latest first</span>
+        <div class="story" id="history"></div>
+      </div>
     </section>
 
     <aside class="panel" aria-live="polite">
@@ -136,6 +140,10 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
       </div>
       <div class="bars" id="bars"></div>
       <div class="row"><span class="label">Family</span><span id="family" class="row"></span></div>
+      <div id="known-box" class="wary" hidden>
+        <span class="label">Knows</span>
+        <div id="known" class="wary"></div>
+      </div>
       <div id="wary-box" class="wary" hidden>
         <span class="label">Wary of</span>
         <div id="wary" class="wary"></div>
@@ -328,7 +336,8 @@ const DATA = /*VIEWER_DATA*/null;
     el("clock").textContent = when(t);
     el("sky").textContent = `${s.season || season(t)}, ${s.weather}, ${s.temp}°C`;
     const p = s.person;
-    el("who").textContent = s.followed >= 0 ? "#" + s.followed : "nobody";
+    el("who").textContent = s.followed < 0 ? "nobody"
+      : s.person && s.person.name ? `${s.person.name} #${s.followed}` : "#" + s.followed;
     if (!p) { el("status").textContent = "Click someone on the map."; return; }
     const dead = p.died !== null && t >= p.died, unborn = t < p.born;
     const me = s.agents.find(a => a.id === s.followed);
@@ -337,6 +346,7 @@ const DATA = /*VIEWER_DATA*/null;
     el("status").textContent = unborn ? "not born yet"
       : dead ? `died of ${p.cause.replace("_", " ")}, ${when(p.died).toLowerCase()}`
       : (me && me.asleep ? "asleep" : "awake") + `, expected to live about ${Math.round(p.lifespan / TPD)} days`;
+    if (p.line) el("status").textContent += `. ${p.sex === "m" ? "He" : "She"} is of the ${p.line} line.`;
     el("age").textContent = `${ageDays} days`;
     el("gen").textContent = p.generation;
     const kids = LIVE ? p.children : p.children.filter(c => DATA.people[c] && DATA.people[c].born <= t);
@@ -354,16 +364,34 @@ const DATA = /*VIEWER_DATA*/null;
     }
 
     const fam = el("family");
-    const famKey = [s.followed, p.parent, isAlive(p.parent, t), ...kids.map(c => c + ":" + isAlive(c, t))].join(",");
+    const famKey = [s.followed, p.parent, isAlive(p.parent, t), p.otherParent, isAlive(p.otherParent, t),
+                    ...kids.map(c => c + ":" + isAlive(c, t))].join(",");
     if (fam.dataset.key !== famKey) {
       fam.dataset.key = famKey;
       fam.innerHTML = "";
       const tag = text => { const s = document.createElement("span"); s.className = "status"; s.textContent = text; return s; };
-      if (p.parent >= 0) fam.append(tag("parent"), chip(p.parent, t));
+      if (p.parent >= 0) fam.append(tag("parents"), chip(p.parent, t));
+    if (p.otherParent >= 0) fam.append(chip(p.otherParent, t));
       if (kids.length) fam.append(tag("children"), ...kids.map(c => chip(c, t)));
       if (p.parent < 0 && !kids.length) { const s = tag("a founder, no children yet"); s.className = "empty"; fam.append(s); }
     }
 
+    el("known-box").hidden = !p.known;
+    if (p.known) {
+      const box = el("known");
+      const key = p.known.map(k => k.join(":")).join(",");
+      if (box.dataset.key !== key) {
+        box.dataset.key = key;
+        box.innerHTML = p.known.length ? "" : '<span class="empty">nobody yet</span>';
+        for (const [id, name, bond] of p.known) {
+          const row = document.createElement("div");
+          row.className = "wary-row";
+          row.innerHTML = `<span></span><div class="track"><div class="fill" style="width:${Math.round(bond * 100)}%;background:var(--rest)"></div></div>`;
+          row.firstChild.textContent = `${name} #${id}`;
+          box.appendChild(row);
+        }
+      }
+    }
     el("wary-box").hidden = !p.wary;
     if (p.wary) {
       const box = el("wary");
@@ -390,6 +418,20 @@ const DATA = /*VIEWER_DATA*/null;
         row.innerHTML = `<time>${stamp(tick)}</time><p${bad ? ' class="bad"' : ""}></p>`;
         row.querySelector("p").textContent = text;
         story.appendChild(row);
+      }
+    }
+
+    const hist = el("history");
+    const past = (LIVE ? (s.history || []) : (DATA.history || [])).filter(h => h[0] <= t);
+    const histKey = past.length + ":" + (past.length ? past[past.length - 1][0] : 0);
+    if (hist.dataset.key !== histKey) {
+      hist.dataset.key = histKey;
+      hist.innerHTML = past.length ? "" : '<div><time></time><p class="empty">Nothing yet.</p></div>';
+      for (let k = past.length - 1; k >= Math.max(0, past.length - 40); k--) {
+        const row = document.createElement("div");
+        row.innerHTML = `<time>${stamp(past[k][0])}</time><p></p>`;
+        row.querySelector("p").textContent = past[k][1];
+        hist.appendChild(row);
       }
     }
 

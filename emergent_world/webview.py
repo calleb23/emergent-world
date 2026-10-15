@@ -61,7 +61,11 @@ def person(agent, now: int, sim=None) -> dict:
     """One agent's record: family, life events, and (live only) what they're wary of."""
     end = now if agent.alive else agent.events[-1][0]
     record = {
+        "name": agent.name,
+        "line": agent.line,
+        "sex": agent.sex,
         "parent": agent.parent_id,
+        "otherParent": agent.other_parent_id,
         "children": list(agent.offspring),
         "generation": agent.generation,
         "lifespan": agent.lifespan,
@@ -71,6 +75,14 @@ def person(agent, now: int, sim=None) -> dict:
         "events": [[t, text] for t, text in agent.events],
     }
     if sim is not None:
+        record["known"] = [[other_id, sim.by_id[other_id].name, round(bond, 2)]
+                           for other_id, bond in sorted(agent.known.items(), key=lambda kv: -kv[1])[:8]
+                           if other_id in sim.by_id]
         record["wary"] = [[sim.config.look_of(color), round(level, 2)]
                           for color, level in sorted(agent.memory.aversion.items(), key=lambda kv: -kv[1])]
     return record
+
+
+def history(sim, limit: int | None = None) -> list:
+    rows = [[t, text] for t, text in sim.history]
+    return rows[-limit:] if limit else rows
