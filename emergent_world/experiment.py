@@ -251,7 +251,8 @@ def report(reference, others: list, keys=REPORT_KEYS) -> str:
              "|---|---|" + "---|" * len(others)]
     tables = [compare(ref_rows, load_summary(o), keys) for o in others]
     for k, key in enumerate(keys):
-        ref_mean = tables[0][k]["a_mean"] if tables else values(ref_rows, key).mean()
+        ref_vals = values(ref_rows, key)
+        ref_mean = float(ref_vals.mean()) if len(ref_vals) else None
         cells = []
         for t in tables:
             r = t[k]
@@ -260,7 +261,8 @@ def report(reference, others: list, keys=REPORT_KEYS) -> str:
                 continue
             text = f"{r['b_mean'] - r['a_mean']:+.3g} ({r['diff_lo']:+.2g}, {r['diff_hi']:+.2g})"
             cells.append(f"**{text}**" if r["clear"] else text)
-        lines.append(f"| {key} | {ref_mean:.3g} | " + " | ".join(cells) + " |")
+        ref_text = "–" if ref_mean is None or (isinstance(ref_mean, float) and np.isnan(ref_mean)) else f"{ref_mean:.3g}"
+        lines.append(f"| {key} | {ref_text} | " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 
