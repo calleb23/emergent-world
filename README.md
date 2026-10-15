@@ -173,6 +173,24 @@ Measured by diagnosing deaths, not guessed:
   food eases wariness of it (`social_reassurance`). Hungry people on food now eat it
   53-80% of the time.
 
+### Keeping the population going
+
+Two-year tests looked healthy because founders were still alive; six- and ten-year
+runs showed the population collapsing to the two-person floor that top-ups keep, with
+births falling below deaths from the first year. Two causes, measured:
+
+- **Too few births**: partners had to be within 8 tiles, which a thinning population
+  rarely managed, and about 3 children fitted in a lifetime of about 9 months.
+- **Brains drift and degrade**: in a world of 5-15 people, mutations pile up faster than
+  selection removes them. Brains of people alive in year 10 kept 15 of 30 alive for
+  120 days in a fresh world, against 20 for the original founders.
+
+So partners can now be up to 16 tiles apart, about 4.5 children fit in a lifetime,
+fat stores up to 180 energy, and strangers arrive with founder brains (fresh genes from
+outside) rather than copies of local brains. Over six years on eight seeds: average
+population 12.7 to 21.3, final-year population 6.3 to 18.0, deepest generation 4.2 to
+6.9. See `docs/experiments/2026-10-15-round3-viability.md`.
+
 ### Tension and adhesion
 
 - **Joining**: drop something onto something else to press them together
