@@ -110,8 +110,21 @@ class Recorder:
         alive_series = [r["alive"] for r in self.rows] or [0]
         person_years = sum(alive_series) / 365.0
         extinct_day = next((r["day"] for r in self.rows if r["alive"] == 0), None)
+        floor = max(sim.config.min_population, 0)
+        last_year = alive_series[-365:]
+        half = len(self.rows) // 2
+        if half and len(self.rows) > half + 1:
+            a, b = self.rows[half], self.rows[-1]
+            years = max((b["day"] - a["day"]) / 365.0, 1e-9)
+            net_late = round(((b["births"] - a["births"]) - (b["deaths"] - a["deaths"])) / years, 2)
+        else:
+            net_late = None
         out = {
             "days": sim.tick_count // TICKS_PER_DAY,
+            # Viability: top-ups keep at least `min_population` alive, which can hide a collapse.
+            "floor_share": round(float(np.mean([n <= floor for n in alive_series])), 4),
+            "alive_last_year": round(float(np.mean(last_year)), 2),
+            "net_growth_late": net_late,   # births minus deaths per year, second half of the run
             "alive_end": len(people),
             "alive_mean": round(float(np.mean(alive_series)), 2),
             "alive_min": int(min(alive_series)),

@@ -161,7 +161,7 @@ def run_batch(name: str, seeds: int, years: float, overrides: dict, workers: int
 
 # --- comparing ------------------------------------------------------------------
 
-HEADLINE = ("alive_mean", "alive_end", "extinct", "life_expectancy_days", "births_per_person_year",
+HEADLINE = ("alive_mean", "alive_end", "alive_last_year", "floor_share", "net_growth_late", "extinct", "life_expectancy_days", "births_per_person_year",
             "max_generation", "share_dehydration", "share_starvation", "share_poison", "share_old_age",
             "mood_mean", "discoveries", "count_comfort", "count_transmission", "genome_diversity",
             "action_entropy_bits", "share_doing", "skill_effects", "established_made",
@@ -235,7 +235,7 @@ def batch_markdown(rows: list[dict], keys=HEADLINE) -> str:
     return "\n".join(lines)
 
 
-REPORT_KEYS = ("alive_mean", "life_expectancy_days", "births_per_person_year", "max_generation",
+REPORT_KEYS = ("alive_mean", "alive_last_year", "floor_share", "net_growth_late", "life_expectancy_days", "births_per_person_year", "max_generation",
                "share_dehydration", "share_starvation", "share_poison", "discoveries",
                "count_transmission", "count_comfort", "mood_mean")
 
