@@ -194,7 +194,10 @@ def welch_t(a: np.ndarray, b: np.ndarray) -> float:
     if len(a) < 2 or len(b) < 2:
         return float("nan")
     se = np.sqrt(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b))
-    return float((b.mean() - a.mean()) / se) if se > 0 else float("inf") * np.sign(b.mean() - a.mean())
+    diff = float(b.mean() - a.mean())
+    if se > 0:
+        return diff / se
+    return 0.0 if diff == 0 else float(np.copysign(np.inf, diff))
 
 
 def compare(a_rows: list[dict], b_rows: list[dict], keys=HEADLINE) -> list[dict]:
