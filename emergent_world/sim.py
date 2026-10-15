@@ -267,12 +267,15 @@ class Simulation:
             self._act(agent, action)
             behaviour.after_action(self, agent)
             agent.activity = behaviour.describe(self, agent, action)
+        self.body_positions = (np.array([a.x for a in self.agents]), np.array([a.y for a in self.agents]),
+                               list(self.agents))
         for agent in living:
             self._update_body(agent)
             if agent.asleep:
                 agent.activity = behaviour.describe(self, agent, None)
             if agent.alive and not agent.asleep:
                 self._maybe_reproduce(agent)
+        self.body_positions = None
         # Dead agents live on only in the stats log.
         self.agents = [a for a in self.agents if a.alive]
         self.by_id = {a.id: a for a in self.agents}

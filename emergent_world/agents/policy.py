@@ -149,11 +149,20 @@ class BrainPolicy:
     def _seen_color(inputs_row, r: int) -> tuple:
         return tuple(int(round(v * 255)) for v in inputs_row[r * RAY_SIZE + 4:r * RAY_SIZE + 7])
 
+    @staticmethod
+    def _color_table(inputs: np.ndarray) -> list:
+        """What each agent sees along each ray, as 0-255 color tuples: [agent][ray].
+        The same values as `_seen_color`, worked out for everyone at once."""
+        n_rays = len(RAY_DIRECTIONS)
+        rays = inputs[:, :n_rays * RAY_SIZE].reshape(len(inputs), n_rays, RAY_SIZE)[:, :, 4:7]
+        return [[tuple(c) for c in agent] for agent in np.rint(rays * 255).astype(int).tolist()]
+
     @classmethod
     def useless_penalty(cls, agents: list, world, inputs: np.ndarray, config) -> tuple:
         """Refuse to bite what's known not to be food, and don't walk over to it."""
         eat = np.zeros(len(agents), dtype=np.float32)
         steer = np.zeros((len(agents), 4), dtype=np.float32)
+        colors = cls._color_table(inputs)
         for i, agent in enumerate(agents):
             useless = agent.memory.useless
             if not useless:
@@ -163,7 +172,7 @@ class BrainPolicy:
                 eat[i] = config.useless_penalty
             for r in range(len(RAY_DIRECTIONS)):
                 closeness = inputs[i, r * RAY_SIZE + 7]
-                if closeness > 0 and cls._seen_color(inputs[i], r) in useless:
+                if closeness > 0 and colors[i][r] in useless:
                     for m in cls._ray_moves(r):
                         steer[i, m] += 1.5 * closeness
         return eat, steer
@@ -173,6 +182,7 @@ class BrainPolicy:
         """Hungry agents want to eat foods they trust, and head for them when seen."""
         eat = np.zeros(len(agents), dtype=np.float32)
         steer = np.zeros((len(agents), 4), dtype=np.float32)
+        colors = cls._color_table(inputs)
         for i, agent in enumerate(agents):
             hunger = 1.0 - agent.energy / config.max_energy
             kind = config.item(int(world.plants[agent.x, agent.y]))
@@ -189,7 +199,7 @@ class BrainPolicy:
             for r in range(len(RAY_DIRECTIONS)):
                 closeness = inputs[i, r * RAY_SIZE + 7]
                 if closeness > 0:
-                    value = agent.memory.trusted(cls._seen_color(inputs[i], r)) * closeness
+                    value = agent.memory.trusted(colors[i][r]) * closeness
                     if value > best:
                         best_r, best = r, value
             if best_r is not None:
@@ -202,6 +212,7 @@ class BrainPolicy:
         """Children keep close to a parent; thirsty or hungry agents with nothing in
         sight head back to where they last found water or food."""
         pull = np.zeros((len(agents), 4), dtype=np.float32)
+        colors = cls._color_table(inputs)
         rays = range(len(RAY_DIRECTIONS))
         for i, agent in enumerate(agents):
             if agent.age < config.maturity_age:
@@ -230,7 +241,7 @@ class BrainPolicy:
             food_need = 1.0 - agent.energy / config.max_energy
             if food_need > 0.5 and agent.memory.food_at is not None:
                 food_seen = any(inputs[i, r * RAY_SIZE + 7] > 0
-                                and agent.memory.trusted(cls._seen_color(inputs[i], r)) > 0.2 for r in rays)
+                                and agent.memory.trusted(colors[i][r]) > 0.2 for r in rays)
                 if not food_seen:
                     tx, ty = agent.memory.food_at
                     if (tx, ty) != (agent.x, agent.y):

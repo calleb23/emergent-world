@@ -69,7 +69,16 @@ def update(sim, agent) -> None:
     agent.joy = agent.joy * 0.9
 
     company = False
-    for other in sim.agents:
+    cached = getattr(sim, "body_positions", None)
+    if cached is not None:
+        # Positions are fixed while bodies update: find who's in range for everyone
+        # at once, then check only those (plus anyone born since the snapshot).
+        xs, ys, people = cached
+        near = np.flatnonzero(np.maximum(np.abs(xs - agent.x), np.abs(ys - agent.y)) <= c.company_range)
+        candidates = [people[k] for k in near] + sim.agents[len(people):]
+    else:
+        candidates = sim.agents
+    for other in candidates:
         if other is agent or not other.alive:
             continue
         if max(abs(other.x - agent.x), abs(other.y - agent.y)) <= c.company_range and (
