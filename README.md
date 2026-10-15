@@ -1,9 +1,9 @@
 # Emergent World
 
 Blank neural-network agents learning to survive in a world that a god AI grows on demand.
-This repo currently covers **build steps 1–3**, with step 4 (evolution) in progress:
-a grid world you can watch, agents with bodies and needs, honest senses, tiny neural-network
-brains, and asexual reproduction with mutation.
+This repo currently covers **build steps 1–4**: a grid world you can watch, agents with
+bodies and needs, honest senses, tiny neural-network brains with basic instincts, and
+asexual reproduction with mutation. Populations now sustain themselves across generations.
 
 ## Setup (Windows, macOS or Linux)
 
@@ -21,7 +21,9 @@ Needs Python 3.10 or newer.
 python main.py                  # watch it live (SPACE pause, UP/DOWN speed, ESC quit)
 python main.py --seed 7         # a different world; the same seed always replays the same run
 python main.py --headless       # no window, runs fast, prints a progress line every 1000 ticks
+python main.py --blank          # start from random brains instead of instincts
 python main.py --random         # random actions instead of brains, as a baseline
+python -m emergent_world.instincts   # retrain instincts.npz (needed after changing senses or brain size)
 python -m pytest                # run the tests
 ```
 
@@ -30,7 +32,7 @@ Every run saves `runs/seed_<n>/deaths.csv` (each death with its cause) and
 
 ## What's in the world
 
-- 64x64 grid of grass with a few lakes.
+- 64x64 grid of grass with a dozen small ponds.
 - Food plants regrow on empty grass. About 10% of new plants are poisonous and only
   *look* slightly different (a slightly yellower green).
 - Eating poison feels like food at first; sickness starts 25 ticks later.
@@ -45,6 +47,11 @@ Every run saves `runs/seed_<n>/deaths.csv` (each death with its cause) and
 - **Reproduction:** fed, watered adults have a child next to them with a mutated copy of
   their brain.
 - **Garden curriculum:** hunger and thirst drain slowly at first and ramp to full strength.
+- **Instincts** (`instincts.py`, `agents/teacher.py`): a hand-written teacher that drinks,
+  eats and walks toward what it needs, using exactly the agents' senses. Brains are trained
+  to copy it, and every run starts from mutated copies of that brain, like animals born
+  with instincts. The teacher eats anything green, so **it can't tell poison from food**:
+  avoiding poison is left for the agents to discover.
 - **Bootstrap:** while the population is below a minimum, it's topped up with mutated
   copies of the fittest recent brains plus some fresh random ones.
 
@@ -69,7 +76,12 @@ tests/
 
 ## Next steps
 
-4. **Evolution only (in progress):** survivors reproduce, children inherit mutated brain weights.
-   Done when agents find food and water by instinct.
+Where things stand (seed 0, 60,000 ticks with instincts): the population holds at its
+400-agent cap for 66 generations with no top-ups, and most agents die of old age.
+Random brains average about 355 ticks of life, cloned instincts about 850–900.
+
+4. **Tune evolution:** the population sits at the 400-agent safety cap, so births are
+   limited by the cap rather than food, which weakens selection. Make food the limit.
+   Agents still eat poison at the rate it grows; nothing has evolved against it yet.
 5. **Learning within a lifetime:** an aversion memory from sickness and from watching
    relatives die. Done when the poison-plant test passes.

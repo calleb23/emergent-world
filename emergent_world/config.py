@@ -58,6 +58,10 @@ class Config:
     mutation_scale: float = 0.05    # size of random changes to inherited weights
     max_population: int = 400       # safety cap so the simulation stays fast
 
+    # Instincts: a brain file from `python -m emergent_world.instincts`. When set,
+    # new agents start as mutated copies of it instead of random brains.
+    instincts_path: str = ""
+
     # Bootstrapping: early random brains die fast, so top the population up
     # until reproduction can sustain it. Most new agents are mutated copies
     # of the longest-lived brains so far; the rest are fresh random brains.

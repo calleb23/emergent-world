@@ -23,6 +23,10 @@ class Simulation:
             self.policy = RandomPolicy(self.rng)
         else:
             self.policy = BrainPolicy(self.rng)
+        self.instinct_brain = None
+        if self.config.instincts_path:
+            from emergent_world.instincts import load
+            self.instinct_brain = load(self.config.instincts_path)
         self.stats = Stats()
         self.tick_count = 0
         self.agents: list[Agent] = []
@@ -43,7 +47,7 @@ class Simulation:
         if x is None:
             x, y = self.world.random_walkable_tile()
         if brain is None and self.uses_brains:
-            brain = Brain.random(self.rng)
+            brain = self.new_brain()
         agent = Agent(
             id=self._next_id,
             x=x,
@@ -59,6 +63,12 @@ class Simulation:
         self._next_id += 1
         self.agents.append(agent)
         return agent
+
+    def new_brain(self) -> Brain:
+        """A brain for an agent with no parent: instincts if we have them, else random."""
+        if self.instinct_brain is not None:
+            return self.instinct_brain.mutated(self.rng, self.config.mutation_scale)
+        return Brain.random(self.rng)
 
     @property
     def living(self) -> list[Agent]:

@@ -18,6 +18,9 @@ def main():
     parser.add_argument("--agents", type=int, default=None, help="starting agent count")
     parser.add_argument("--headless", action="store_true", help="no window, run as fast as possible")
     parser.add_argument("--random", action="store_true", help="random actions instead of brains (baseline)")
+    parser.add_argument("--instincts", default="instincts.npz",
+                        help="brain file from `python -m emergent_world.instincts` to start from")
+    parser.add_argument("--blank", action="store_true", help="start from random brains, no instincts")
     parser.add_argument("--progress", type=int, default=1000, help="headless: print a progress line every N ticks")
     args = parser.parse_args()
 
@@ -26,6 +29,9 @@ def main():
         config.initial_agents = args.agents
     if args.random:
         config.policy = "random"
+    if not args.blank and not args.random and Path(args.instincts).exists():
+        config.instincts_path = args.instincts
+        print(f"Starting from instincts in {args.instincts}")
     sim = Simulation(config, seed=args.seed)
 
     if args.headless:
