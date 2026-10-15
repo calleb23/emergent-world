@@ -51,3 +51,11 @@ def test_newcomers_carry_a_living_brain():
     assert newcomer.id not in old
     closest = min(float(np.abs(newcomer.brain.w2 - b.w2).sum()) for b in old.values())
     assert closest < 1.0
+
+
+def test_imitation_still_works_with_lifetime_learning_off():
+    c = Config(initial_agents=2, min_population=0, climate=False, learning=False)
+    sim = Simulation(c, seed=0)
+    for _ in range(3):
+        sim.tick()
+    assert all(a.last_choice is not None for a in sim.agents)

@@ -62,6 +62,11 @@ class BrainPolicy:
             self._imitate(agents, lookup, config)
         if config.learning:
             self._learn(agents, details, actions, config)
+        else:   # still remember the last choice, so others can watch and copy it
+            for i, agent in enumerate(agents):
+                agent.reward = 0.0
+                act = int(actions[i])
+                agent.last_choice = (details["hidden"][i].copy(), act, float(details["values"][i, act]))
         for i, agent in enumerate(agents):
             agent.last_seen = inputs[i]
         return [Action(int(a)) for a in actions]
