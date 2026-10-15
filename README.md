@@ -86,6 +86,11 @@ world after five lifetimes.
   | pale mushroom | badly sick 40 hours later, so it's hard to tell why | near water |
   | nut | rich food, rare | far from water |
   | grey rock, stick | can't be eaten; agents learn to stop trying | anywhere |
+  | cug | a fine meal, if you can catch one | near water |
+
+  The **cug** is the world's first critter: small, teal and skittish. Cugs wander,
+  bolt when someone gets next to them, and breed when there's room (busy in spring,
+  nearly stopped in winter), up to about 120 at once.
 
 - **Day and night, seasons and weather** (`world/climate.py`): 24-hour days; at night
   agents see only a few tiles. Four 91-day seasons: spring grows fastest, summer heat

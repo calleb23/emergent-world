@@ -189,6 +189,10 @@ class Simulation:
             self.climate.tick()
         self.world.tick(self.climate.growth if self.climate is not None else 1.0)
         living = self.living
+        occupied = np.zeros((self.world.width, self.world.height), dtype=bool)
+        for a in living:
+            occupied[a.x, a.y] = True
+        self.world.move_critters(occupied, self.climate.growth if self.climate is not None else 1.0)
         awake = [a for a in living if not a.asleep]
         actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach)
         for agent, action in zip(awake, actions):
@@ -242,7 +246,8 @@ class Simulation:
         self.world.take_plant(agent.x, agent.y)
         if color not in agent.firsts:
             agent.firsts.add(color)
-            self.log(agent, f"Ate a {look} for the first time")
+            caught = "Caught and ate" if kind.wanders else "Ate"
+            self.log(agent, f"{caught} a {look} for the first time")
         elif agent.memory.level(color) > 0.5:
             self.log(agent, f"Ate a {look} despite a bad feeling about it")
         self.stats.record_meal_by_learning(agent, kind.harmful)

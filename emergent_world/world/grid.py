@@ -91,6 +91,41 @@ class World:
         empty = (self.terrain == GRASS) & (self.plants == NO_PLANT)
         self._sprout(empty & (self.rng.random(empty.shape) < self.config.regrow_chance * growth), False)
 
+    def move_critters(self, occupied: np.ndarray, growth: float = 1.0):
+        """Critters wander, scuttle away from anyone next to them, and breed.
+        `occupied` marks tiles with a person on them; `growth` (season and
+        weather) scales breeding, so critters boom in spring and stall in winter."""
+        steps = ((1, 0), (-1, 0), (0, 1), (0, -1))
+        for item_id, kind in enumerate(self.config.items, start=1):
+            if not (kind.wanders or kind.flees or kind.breeds):
+                continue
+            spots = np.argwhere(self.plants == item_id)
+            count = len(spots)
+            for x, y in spots:
+                x, y = int(x), int(y)
+                near = any(self.in_bounds(x + dx, y + dy) and occupied[x + dx, y + dy] for dx, dy in steps)
+                bolting = near and self.rng.random() < kind.flees
+                if bolting or self.rng.random() < kind.wanders:
+                    options = [(x + dx, y + dy) for dx, dy in steps
+                               if self.is_walkable(x + dx, y + dy) and self.plants[x + dx, y + dy] == NO_PLANT
+                               and not occupied[x + dx, y + dy]]
+                    if bolting:   # run, preferring tiles with nobody next to them
+                        calm = [(a, b) for a, b in options
+                                if not any(self.in_bounds(a + dx, b + dy) and occupied[a + dx, b + dy] for dx, dy in steps)]
+                        options = calm or options
+                    if options:
+                        nx, ny = options[int(self.rng.integers(0, len(options)))]
+                        self.plants[x, y] = NO_PLANT
+                        self.plants[nx, ny] = item_id
+                        x, y = nx, ny
+                if count < kind.max_count and self.rng.random() < kind.breeds * growth:
+                    nests = [(x + dx, y + dy) for dx, dy in steps
+                             if self.is_walkable(x + dx, y + dy) and self.plants[x + dx, y + dy] == NO_PLANT]
+                    if nests:
+                        nx, ny = nests[int(self.rng.integers(0, len(nests)))]
+                        self.plants[nx, ny] = item_id
+                        count += 1
+
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
 

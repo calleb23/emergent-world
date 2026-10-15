@@ -24,6 +24,11 @@ class ItemKind:
     wilt_chance: float = 0.002   # chance per hour it disappears; 0 = lasts forever
     group: str = "plant"         # for the legend: plant, berry, mushroom, nut, debris
     regrows: bool = True         # False: only placed when the world is made (rocks)
+    # Critters move on their own. All zero for things that sit still.
+    wanders: float = 0.0         # chance per hour of stepping to a neighbouring tile
+    flees: float = 0.0           # chance per hour of scuttling away when someone is next to it
+    breeds: float = 0.0          # chance per hour of making another one nearby (if there's room)
+    max_count: int = 0           # the most of them the world holds at once
 
     @property
     def harmful(self) -> bool:
@@ -57,4 +62,10 @@ DEFAULT_ITEMS = (
              wilt_chance=0.0, regrows=False, group="debris"),
     ItemKind("stick", (105, 82, 52), edible=False, spawn_weight=1.0,
              wilt_chance=0.0008, group="debris"),
+    # The cug: a small, skittish, teal critter that skitters about the damp ground
+    # near ponds. It wanders, bolts when someone gets close, and makes more cugs
+    # when there's room. Catching one takes luck or persistence; it's a fine meal.
+    ItemKind("cug", (70, 205, 190), energy=35, spawn_weight=0.6, habitat="near_water",
+             wilt_chance=0.0004, regrows=False, wanders=0.35, flees=0.7,
+             breeds=0.004, max_count=120, group="critter"),
 )
