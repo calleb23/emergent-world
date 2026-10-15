@@ -19,6 +19,10 @@ class Action(IntEnum):
     GIVE = 9      # hand what's held to the nearest person next to you
     STRIKE = 10   # hit what's underfoot with what's held
     RUB = 11      # rub what's held against what's underfoot (friction makes heat)
+    TAKE = 12     # grab what the person next to you is holding
+    HIT = 13      # hit the person next to you (harder with something hard in hand)
+    COMFORT = 14  # hold or groom the person next to you
+    CALL = 15     # cry out: heard far off, and the cry carries how afraid you are
 
 
 MOVES = {
@@ -86,6 +90,16 @@ class Agent:
     cause_of_death: str = ""
     sicknesses: list = field(default_factory=list)
     last_damage: str = ""   # what hurt this agent most recently
+    # Feelings (0..1) and temperament: see agents/emotions.py.
+    fear: float = 0.0
+    anger: float = 0.0
+    loneliness: float = 0.0
+    joy: float = 0.0
+    traits: dict = field(default_factory=dict)   # boldness, sociability, temper, kindness
+    grudges: dict = field(default_factory=dict)  # id -> 0..1: people who wronged them
+    heard: tuple | None = None       # loudest call heard last hour: (dx, dy, loudness, alarm)
+    heard_next: tuple | None = None  # calls arriving this hour, heard next hour
+    last_attacker: int = -1          # who last hit them
 
     def take_damage(self, amount: float, source: str):
         self.health -= amount

@@ -8,7 +8,9 @@ from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, 
 
 
 MOVE_ACTIONS = (Action.NORTH, Action.SOUTH, Action.EAST, Action.WEST, Action.REST)
-SKILL_ACTIONS = (Action.STRIKE, Action.RUB, Action.PICK_UP, Action.DROP, Action.GIVE)
+SKILL_ACTIONS = (Action.STRIKE, Action.RUB, Action.PICK_UP, Action.DROP, Action.GIVE,
+                 Action.COMFORT, Action.CALL)
+PEOPLE_ACTIONS = (Action.TAKE, Action.HIT, Action.COMFORT)
 
 
 class RandomPolicy:
@@ -50,6 +52,7 @@ class BrainPolicy:
         penalties[:, Action.EAT] -= trust_eat
         penalties[:, :4] -= trust_steer
         penalties[:, :4] -= self.place_pull(agents, inputs, config, lookup or {})
+        penalties += self.social_penalty(agents, lookup or {}, config)
         details = {}
         actions = think([a.brain for a in agents], inputs, self.rng,
                         config.action_selection, config.exploration, penalties, details)
@@ -217,8 +220,8 @@ class BrainPolicy:
         for i, agent in enumerate(agents):
             ready = (agent.age >= config.maturity_age and agent.reproduce_cooldown == 0
                      and agent.energy >= config.reproduce_energy and agent.grief == 0)
-            strength = config.mating_pull if ready else 0.0
-            if not strength:
+            strength = (config.mating_pull if ready else 0.0) + config.lonely_pull * agent.loneliness
+            if strength < 0.05:
                 continue
             for r, (dx, dy) in enumerate(RAY_DIRECTIONS):
                 closeness = inputs[i, r * RAY_SIZE + 7]
@@ -227,6 +230,31 @@ class BrainPolicy:
                     for m in moves:
                         pull[i, m] += strength * (0.5 + closeness) / len(moves)
         return pull
+
+    @staticmethod
+    def social_penalty(agents: list, lookup: dict, config) -> np.ndarray:
+        """Innate reluctance to hurt or rob someone, strongest toward family and
+        friends and in kind people. Anger at someone who wronged you overrides it,
+        and so does hunger when they hold food. Reaching for someone who isn't
+        there is pointless, so those actions are held back when nobody's beside you."""
+        from emergent_world.agents.emotions import trait
+        penalties = np.zeros((len(agents), OUTPUT_SIZE), dtype=np.float32)
+        people = [p for p in lookup.values() if p.alive]
+        for i, agent in enumerate(agents):
+            beside = [p for p in people if p is not agent and max(abs(p.x - agent.x), abs(p.y - agent.y)) <= 1]
+            if not beside:
+                penalties[i, list(PEOPLE_ACTIONS)] = 3.0
+                continue
+            other = beside[0]
+            bond = agent.known.get(other.id, 0.0) + (1.0 if other.id in agent.kin else 0.0)
+            care = config.harm_aversion * (0.5 + trait(agent, "kindness")) * (1.0 + 2.0 * bond)
+            release = 3.0 * agent.anger * agent.grudges.get(other.id, 0.0) + 2.0 * agent.anger
+            held = config.item(other.hands)
+            if held is not None and held.edible:
+                release += 2.0 * (1.0 - agent.energy / config.max_energy)
+            penalties[i, Action.HIT] = max(0.0, care - release)
+            penalties[i, Action.TAKE] = 3.0 if agent.hands or not other.hands else max(0.0, 0.6 * care - release)
+        return penalties
 
     @staticmethod
     def desperation(agents: list, config) -> np.ndarray:

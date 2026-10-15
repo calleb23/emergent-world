@@ -6,6 +6,7 @@ and a rock is just grey.
 
 import numpy as np
 
+from emergent_world.agents.emotions import SOCIAL_SIZE, social_inputs
 from emergent_world.world.grid import LIQUIDS, WATER
 from emergent_world.world.physics import FIRE_COLOR
 
@@ -27,7 +28,8 @@ UNDERFOOT = len(RAY_DIRECTIONS) * RAY_SIZE
 TOUCH_LIQUID = UNDERFOOT + 3
 HANDS = TOUCH_LIQUID + 5
 BOREDOM, EXPOSED, LIGHT, AT_SHELTER, PILE = HANDS + 3, HANDS + 4, HANDS + 5, HANDS + 6, HANDS + 7
-INPUT_SIZE = PILE + 1
+SOCIAL = PILE + 1          # feelings and other people: see agents/emotions.py
+INPUT_SIZE = SOCIAL + SOCIAL_SIZE
 
 
 def _norm(color) -> tuple:
@@ -110,10 +112,12 @@ def sense_all(agents: list, world, config, reach: int | None = None) -> np.ndarr
         inputs[k, HANDS:HANDS + 8] = _feelings(a, world, config)
     inputs[:, TOUCH_LIQUID + 4] = [1.0 if any(s.delay == 0 for s in a.sicknesses) else 0.0
                                   for a in agents]
+    for k, a in enumerate(agents):
+        inputs[k, SOCIAL:] = social_inputs(a, agents, config)
     return inputs
 
 
-def sense(agent, world, occupied: np.ndarray, config) -> np.ndarray:
+def sense(agent, world, occupied: np.ndarray, config, people=()) -> np.ndarray:
     """Senses for one agent. The readable reference version of `sense_all`."""
     inputs = np.zeros(INPUT_SIZE, dtype=np.float32)
     plant_colors = {i + 1: _norm(k.color) for i, k in enumerate(config.items)}
@@ -155,6 +159,7 @@ def sense(agent, world, occupied: np.ndarray, config) -> np.ndarray:
     inputs[i + 2] = agent.health / config.max_health
     inputs[i + 3] = 1.0 if any(s.delay == 0 for s in agent.sicknesses) else 0.0
     inputs[HANDS:HANDS + 8] = _feelings(agent, world, config)
+    inputs[SOCIAL:] = social_inputs(agent, people, config)
     return inputs
 
 

@@ -100,6 +100,16 @@ class Config:
     # Learning within a lifetime: brains drift toward actions that felt good
     learning: bool = True
     learn_rate: float = 0.01
+    # Feelings and people (agents/emotions.py).
+    fear_weight: float = 0.3        # how bad an hour of fear feels
+    anger_weight: float = 0.15
+    lonely_weight: float = 0.2
+    loneliness_rate: float = 0.006  # per hour alone, for an average temperament
+    lonely_pull: float = 1.0        # lonely people are drawn toward people they can see
+    hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
+    harm_aversion: float = 2.5      # innate reluctance to hit or rob, stronger toward the loved
+    touch_reward: float = 0.4       # being comforted feels good, and so does comforting
+    gift_reward: float = 0.3        # being given something feels good
     imitation: bool = True          # people learn by watching each other (agents/policy.py)
     imitation_rate: float = 0.003   # how strongly one sighting shifts the onlooker's brain
     imitation_payoff: float = 5.0   # how much a visible payoff (or hurt) scales the lesson

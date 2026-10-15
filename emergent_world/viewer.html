@@ -140,6 +140,18 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
       </div>
       <div class="bars" id="bars"></div>
       <div class="row"><span class="label">Family</span><span id="family" class="row"></span></div>
+      <div id="feel-box" class="wary" hidden>
+        <span class="label">Feeling</span>
+        <div id="feel" class="wary"></div>
+      </div>
+      <div id="trait-box" class="wary" hidden>
+        <span class="label">Personality</span>
+        <div id="trait" class="wary"></div>
+      </div>
+      <div id="grudge-box" class="wary" hidden>
+        <span class="label">Holds a grudge against</span>
+        <div id="grudge" class="wary"></div>
+      </div>
       <div id="known-box" class="wary" hidden>
         <span class="label">Knows</span>
         <div id="known" class="wary"></div>
@@ -412,6 +424,22 @@ const DATA = /*VIEWER_DATA*/null;
         }
       }
     }
+    const levels = (boxId, listId, rows, color) => {
+      el(boxId).hidden = !(rows && rows.length);
+      if (!rows || !rows.length) return;
+      const box = el(listId);
+      box.innerHTML = "";
+      for (const [name, level] of rows) {
+        const row = document.createElement("div");
+        row.className = "wary-row";
+        row.innerHTML = `<span></span><div class="track"><div class="fill" style="width:${Math.round(level * 100)}%;background:${color}"></div></div>`;
+        row.firstChild.textContent = name;
+        box.appendChild(row);
+      }
+    };
+    levels("feel-box", "feel", p.feelings, "var(--accent)");
+    levels("trait-box", "trait", p.personality, "var(--rest)");
+    levels("grudge-box", "grudge", p.grudges, "var(--danger)");
     el("wary-box").hidden = !p.wary;
     if (p.wary) {
       const box = el("wary");

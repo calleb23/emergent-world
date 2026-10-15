@@ -114,7 +114,7 @@ def test_batched_senses_match_reference():
     agents = sim.living
     agents[0].sicknesses.append(type("S", (), {"delay": 0})())  # one agent feeling pain
     occupied = build_occupancy(sim.world, agents)
-    reference = np.stack([sense(a, sim.world, occupied, sim.config) for a in agents])
+    reference = np.stack([sense(a, sim.world, occupied, sim.config, agents) for a in agents])
     assert np.allclose(sense_all(agents, sim.world, sim.config), reference)
 
 

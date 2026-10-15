@@ -7,6 +7,7 @@ import numpy as np
 from emergent_world.agents.agent import MOVES, Action, Agent, Sickness
 from emergent_world.agents.brain import Brain
 from emergent_world import behaviour
+from emergent_world.agents import emotions
 from emergent_world.agents.names import label, make_name
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
@@ -25,6 +26,7 @@ class Simulation:
         self.world = World(self.config, self.rng)
         self.climate = Climate(self.rng) if self.config.climate else None
         self.world.climate = self.climate   # senses read light and weather through the world
+        self.biter_ids = [i for i, k in enumerate(self.config.items, start=1) if k.bites]
         if self.config.policy == "random":
             self.policy = RandomPolicy(self.rng)
         else:
@@ -103,6 +105,7 @@ class Simulation:
             aversion_gain=self._inherit_gain(parent, father),
         )
         agent.line = parent.line if parent is not None else agent.name
+        agent.traits = emotions.inherit_traits(self.rng, parent, father)
         self._next_id += 1
         self.agents.append(agent)
         self.by_id[agent.id] = agent
@@ -231,6 +234,8 @@ class Simulation:
         return max(2, round(self.config.vision_range * self.climate.visibility))
 
     def tick(self):
+        for a in self.agents:   # last hour's calls reach the ears now
+            a.heard, a.heard_next = a.heard_next, None
         if self.climate is not None:
             self.climate.tick()
         self.world.tick(self.climate.growth if self.climate is not None else 1.0)
@@ -284,6 +289,14 @@ class Simulation:
                 self._consume(agent, held, carried=True)
             else:
                 self._eat(agent)
+        elif action in (Action.TAKE, Action.HIT, Action.COMFORT):
+            other = self._beside(agent)
+            if other is not None:
+                {Action.TAKE: self._take, Action.HIT: self._hit, Action.COMFORT: self._comfort}[action](agent, other)
+                if action == Action.COMFORT:
+                    self._copied_success(agent, action)
+        elif action == Action.CALL:
+            self._call(agent)
         elif action in (Action.PICK_UP, Action.DROP, Action.GIVE, Action.STRIKE, Action.RUB):
             x, y = agent.x, agent.y
             before = (agent.hands, int(self.world.plants[x, y]), int(self.world.fire[x, y] > 0))
@@ -312,6 +325,92 @@ class Simulation:
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
                 agent.memory.water_at = (agent.x, agent.y)
 
+    def _beside(self, agent: Agent):
+        """The person right next to this one (the closest, if several), or None."""
+        best = None
+        for other in self.agents:
+            if other is not agent and other.alive:
+                d = max(abs(other.x - agent.x), abs(other.y - agent.y))
+                if d <= 1 and (best is None or d < best[0]):
+                    best = (d, other)
+        return best[1] if best else None
+
+    def _take(self, agent: Agent, other: Agent):
+        """Grab what the person beside you holds. Awake, they may hold on."""
+        if agent.hands or not other.hands:
+            return
+        held = self.config.item(other.hands)
+        if not other.asleep and self.rng.random() < 0.4:
+            emotions.provoke(other, agent, 0.2)
+            self._first(agent, ("grabbed failed",), f"Grabbed at the {held.look} {other.name} was holding; they held on")
+            return
+        agent.hands, other.hands = other.hands, 0
+        other.asleep = False
+        emotions.provoke(other, agent, 0.4)
+        self.log(agent, f"Took a {held.look} from {other.name}")
+        self.log(other, f"{agent.name} took their {held.look}")
+        self.chronicle(f"{label(agent)} took a {held.look} from {label(other)}: the first theft", once="theft")
+
+    def _hit(self, agent: Agent, other: Agent):
+        """Strike the person beside you. Something hard in hand hits harder."""
+        c = self.config
+        held = c.item(agent.hands)
+        damage = c.hit_damage + (0.6 * held.hardness if held is not None else 0.0)
+        other.take_damage(damage, "violence")
+        other.last_attacker = agent.id
+        other.asleep = False
+        other.fear = min(1.0, other.fear + 0.4 * (1.5 - emotions.trait(other, "boldness")))
+        emotions.provoke(other, agent, 0.5)
+        agent.anger *= 0.6   # lashing out spends some of it
+        for onlooker in self.agents:
+            if onlooker.alive and onlooker not in (agent, other) and \
+                    max(abs(onlooker.x - agent.x), abs(onlooker.y - agent.y)) <= 5:
+                onlooker.fear = min(1.0, onlooker.fear + 0.2)
+                onlooker.known[agent.id] = max(0.0, onlooker.known.get(agent.id, 0.0) - 0.05)
+                if other.id in onlooker.kin or onlooker.known.get(other.id, 0) >= c.close_bond:
+                    emotions.provoke(onlooker, agent, 0.2)   # you hurt someone I love
+        weapon = f" with a {held.look}" if held is not None else ""
+        self.log(agent, f"Hit {other.name}{weapon}")
+        self.log(other, f"Was hit by {agent.name}{weapon}")
+        self.chronicle(f"{label(agent)} hit {label(other)}{weapon}: the first violence", once="violence")
+
+    def _comfort(self, agent: Agent, other: Agent):
+        """Hold, groom or soothe the person beside you. It eases fear, grief, loneliness
+        and anger in them, softens grudges, and feels good to both."""
+        c = self.config
+        other.fear *= 0.6
+        other.anger *= 0.7
+        other.loneliness = max(0.0, other.loneliness - 0.3)
+        other.grief = max(0, other.grief - 6)
+        if agent.id in other.grudges:
+            other.grudges[agent.id] *= 0.7
+        warmth = 0.5 + emotions.trait(agent, "kindness")
+        other.reward += c.touch_reward
+        agent.reward += c.touch_reward * warmth * 0.5
+        other.joy = min(1.0, other.joy + 0.25)
+        agent.joy = min(1.0, agent.joy + 0.1)
+        for a, b in ((agent, other), (other, agent)):
+            a.known[b.id] = min(1.0, a.known.get(b.id, 0.0) + 0.04)
+        upset = other.grief > 0 or other.fear > 0.3
+        self._first(agent, ("comforted", upset), f"Comforted {other.name}" + (", who was upset" if upset else ""))
+        self.chronicle(f"{label(agent)} comforted {label(other)}" + (", who was upset" if upset else ""),
+                       once=("comfort", upset))
+
+    def _call(self, agent: Agent):
+        """Cry out. Everyone within earshot hears where it came from, and how afraid it sounded."""
+        reach = self.config.hearing_range
+        for other in self.agents:
+            if other is agent or not other.alive:
+                continue
+            dx, dy = agent.x - other.x, agent.y - other.y
+            d = max(abs(dx), abs(dy))
+            if d > reach:
+                continue
+            loud = 1.0 - d / (reach + 1)
+            if other.heard_next is None or loud > other.heard_next[2]:
+                other.heard_next = (dx / reach, dy / reach, loud, agent.fear)
+        self._first(agent, ("called",), "Called out")
+
     def _copied_success(self, agent: Agent, action):
         """They did something that worked, having lately watched someone else do it."""
         seen = agent.copied.get(action)
@@ -322,6 +421,7 @@ class Simulation:
             return
         agent.firsts.add(("copied", action))
         verb = {Action.PICK_UP: "pick things up", Action.DROP: "put things down", Action.GIVE: "give things",
+                Action.COMFORT: "comfort others", Action.CALL: "call out",
                 Action.STRIKE: "strike things", Action.RUB: "rub things together"}[action]
         self.log(agent, f"Did what they'd watched {model.name} do: learned to {verb}")
         self.chronicle(f"{label(agent)} learned to {verb} by watching {label(model)}", once=("copied", action))
@@ -400,6 +500,11 @@ class Simulation:
             return
         other = near[0]
         other.hands, agent.hands = agent.hands, 0
+        other.reward += self.config.gift_reward
+        other.joy = min(1.0, other.joy + 0.3)
+        agent.reward += self.config.gift_reward * emotions.trait(agent, "kindness")
+        if agent.id in other.grudges:
+            other.grudges[agent.id] *= 0.6   # a peace offering
         self.log(agent, f"Gave a {held.look} to {other.name}")
         self.log(other, f"{agent.name} gave them a {held.look}")
         self.chronicle(f"{label(agent)} gave something to someone for the first time: "
@@ -545,6 +650,7 @@ class Simulation:
         if agent.fatigue >= 1.0 and not agent.asleep:
             agent.take_damage(c.exhaustion_damage, "exhaustion")
 
+        emotions.update(self, agent)
         self._feel(agent)
         if agent.health <= 0:
             self._kill(agent, agent.last_damage)
@@ -564,12 +670,14 @@ class Simulation:
         if behaviour.exposed(self, agent):
             feeling -= c.exposure_weight
         feeling -= c.boredom_weight * agent.boredom
+        feeling -= emotions.feeling_cost(agent, c)
         if len(agent.recent) >= 2 and agent.recent[-1] not in agent.recent[:-1]:
             feeling += c.novelty_reward
         if agent.last_damage and agent.health < agent.last_health:
             feeling -= c.pain_weight * (agent.last_health - agent.health)
         agent.last_health = agent.health
         agent.reward += feeling
+        agent.joy = min(1.0, agent.joy + max(0.0, feeling))
         agent.mood = 0.99 * agent.mood + 0.01 * feeling * 10
 
     def _update_fat(self, agent: Agent):
@@ -653,6 +761,8 @@ class Simulation:
             if d > c.mate_range:
                 continue
             # Someone she's close to beats someone merely nearby.
+            if mother.grudges.get(other.id, 0.0) > 0.3:
+                continue   # not with someone who wronged her
             score = mother.known.get(other.id, 0.0) * 10 - d
             if best_score is None or score > best_score:
                 best, best_score = other, score
@@ -687,6 +797,8 @@ class Simulation:
             kin_of = adults[int(self.rng.integers(0, len(adults)))]
             brain = kin_of.brain.mutated(self.rng, c.mutation_scale, c.mutation_rate)
         agent = self.spawn_agent(x, y, brain=brain)
+        if adults:
+            agent.traits = emotions.inherit_traits(self.rng, kin_of)
         agent.age = int(c.maturity_age + self.rng.integers(0, max(1, agent.lifespan // 3)))
         agent.events[-1] = (self.tick_count, f"Wandered in from beyond the edge of the world, "
                                              f"founding the {agent.line} line")
@@ -743,6 +855,13 @@ class Simulation:
         agent.alive = False
         agent.cause_of_death = cause
         self.log(agent, f"Died of {cause.replace('_', ' ')}, aged {agent.age // 24} days")
+        killer = self.by_id.get(agent.last_attacker) if cause == "violence" else None
+        if killer is not None and killer.alive:
+            self.log(killer, f"Killed {agent.name}")
+            self.chronicle(f"{label(killer)} killed {label(agent)}", once="killing")
+            for mourner in self.agents:
+                if mourner.alive and (agent.id in mourner.kin or mourner.known.get(agent.id, 0) >= self.config.close_bond):
+                    emotions.provoke(mourner, killer, 0.8)
         for kin in self.kin_watching(agent):
             text = f"Saw their {self.relation(kin, agent)} {label(agent)} die ({cause.replace('_', ' ')})"
             if cause == "poison":

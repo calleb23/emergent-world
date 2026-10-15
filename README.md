@@ -89,6 +89,34 @@ outcomes. People can strike what's underfoot with what they hold, or rub them to
   overfishing empties the ponds for a while.
 - **Warmth**: holding a pelt keeps off a cold night (not the rain).
 
+### Feelings, personality and each other
+
+`agents/emotions.py`. Nothing makes anyone act on a feeling: people sense their own
+feelings and the faces of whoever is nearest, and their brains learn what to do,
+because fear, anger and loneliness feel bad, and comfort, gifts and company feel good.
+
+- **Feelings**: fear (pain, animals or fire close by, alarm calls; fades fast),
+  anger (being hit or robbed; leaves a slow-fading **grudge** against that person),
+  loneliness (builds away from anyone you know, three times faster in children),
+  joy (good moments), and grief.
+- **Personality**: four inherited traits, boldness, sociability, temper and kindness.
+  A child gets the mean of its parents' traits plus a little variation, so temperaments
+  run in families.
+- **What people sense of each other**: the nearest person's fear, anger and joy, the
+  bond with them, whether they're kin, any grudge, whether they hold something, and
+  whether they're right beside you. Also the loudest call heard: its direction, how
+  loud it was, and how afraid it sounded.
+- **New actions**: **take** what the person beside you holds (awake, they may hold on),
+  **hit** them (harder with something hard in hand), **comfort** them (eases their
+  fear, grief, loneliness and anger, softens grudges, feels good to both), and
+  **call** out (heard up to 16 tiles away, carrying the caller's fear).
+- **Innate wiring**: people are reluctant to hit or rob, more so kind people and
+  more so toward family and friends. Anger at someone who wronged you overrides it,
+  and so does hunger when they hold food. Lonely people are drawn toward people they
+  can see. Gifts ease grudges, and women won't pair with a man they hold a grudge
+  against. A killing turns the victim's family and friends against the killer.
+- The viewer shows each person's feelings, personality and grudges.
+
 ### Imitation
 
 People watch each other (`BrainPolicy._imitate`). When someone nearby does

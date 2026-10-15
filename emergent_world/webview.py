@@ -73,11 +73,16 @@ def person(agent, now: int, sim=None) -> dict:
         "died": None if agent.alive else end,
         "cause": agent.cause_of_death,
         "events": [[t, text] for t, text in agent.events],
+        "personality": [[k, round(v, 2)] for k, v in agent.traits.items()],
     }
     if sim is not None:
         record["known"] = [[other_id, sim.by_id[other_id].name, round(bond, 2)]
                            for other_id, bond in sorted(agent.known.items(), key=lambda kv: -kv[1])[:8]
                            if other_id in sim.by_id]
+        record["feelings"] = [["fear", round(agent.fear, 2)], ["anger", round(agent.anger, 2)],
+                              ["loneliness", round(agent.loneliness, 2)], ["joy", round(agent.joy, 2)]]
+        record["grudges"] = [[sim.by_id[i].name, round(v, 2)] for i, v in
+                             sorted(agent.grudges.items(), key=lambda kv: -kv[1])[:5] if i in sim.by_id]
         record["wary"] = [[sim.config.look_of(color), round(level, 2)]
                           for color, level in sorted(agent.memory.aversion.items(), key=lambda kv: -kv[1])]
     return record

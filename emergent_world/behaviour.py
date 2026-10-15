@@ -12,7 +12,8 @@ feel as a result, which their brains sense and learn from:
 """
 
 ACTIVITIES = ("", "sleeping", "sheltering", "drinking", "eating", "picking something up",
-              "striking something", "rubbing something",
+              "striking something", "rubbing something", "taking something", "fighting",
+              "comforting someone", "calling out", "afraid", "lonely", "angry",
               "putting something down", "giving something", "carrying something", "grieving",
               "following a parent", "looking for water", "looking for food", "resting",
               "wandering", "out in the weather")
@@ -66,13 +67,19 @@ def describe(sim, agent, action) -> str:
     name = getattr(action, "name", "")
     labels = {"DRINK": "drinking", "EAT": "eating", "PICK_UP": "picking something up",
               "DROP": "putting something down", "GIVE": "giving something",
-              "STRIKE": "striking something", "RUB": "rubbing something"}
+              "STRIKE": "striking something", "RUB": "rubbing something",
+              "TAKE": "taking something", "HIT": "fighting", "COMFORT": "comforting someone",
+              "CALL": "calling out"}
     if name in labels:
         return labels[name]
     if agent.grief:
         return "grieving"
     if exposed(sim, agent):
         return "out in the weather"
+    if agent.fear > 0.5:
+        return "afraid"
+    if agent.anger > 0.5:
+        return "angry"
     if agent.hands:
         return "carrying something"
     if agent.age < c.maturity_age:
@@ -81,6 +88,8 @@ def describe(sim, agent, action) -> str:
         return "looking for water"
     if agent.energy < 0.5 * c.max_energy:
         return "looking for food"
+    if agent.loneliness > 0.6:
+        return "lonely"
     if name == "REST":
         return "resting"
     return "wandering"
