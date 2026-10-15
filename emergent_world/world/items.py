@@ -49,6 +49,21 @@ class ItemKind:
     drops: tuple = ()            # (look, chance per hour): what it sheds onto open ground beside it
     grows_into: str = ""         # dropped on open grass, it grows into this...
     grow_days: int = 0           # ...after this many days
+    rots_into: str = ""          # what it leaves behind when it wilts (a fallen tree leaves a log)
+    # Tension and adhesion. Pressing one thing onto another (dropping it on top) can
+    # join them, if a binder holds: a flexible thing ties with its tensile strength,
+    # a sticky thing glues with its adhesion (wet glue barely holds). Either must
+    # bear at least twice the weight of what it holds together.
+    tensile: float = 0.0         # pull it can take before snapping (cord, vine, fibre)
+    flexible: bool = False       # bends and ties: it can lash things together
+    sticky: float = 0.0          # adhesion: it glues (resin, mud); sticks to fingers too
+    bond: float = 0.0            # for joined things: how strongly the parts hold together
+    parts: tuple = ()            # what a joined thing falls back into when its bond gives
+    brittle: float = 0.0         # chance it breaks into `breaks_into` when put down
+    sharp: bool = False          # cuts: a sharp thing kills a critter, leaving its carcass
+    carcass: str = ""            # what a critter leaves when killed
+    reach: int = 0               # tiles a held tool can strike across (a spear, a bow)
+    traps: str = ""              # a critter stepping onto it is caught, becoming this
 
     @property
     def harmful(self) -> bool:
@@ -92,10 +107,11 @@ DEFAULT_ITEMS = (
     # when there's room. Catching one takes luck or persistence; it's a fine meal.
     ItemKind("cug", (70, 205, 190), energy=35, spawn_weight=0.6, habitat="near_water",
              wilt_chance=0.0004, regrows=False, wanders=0.35, flees=0.7,
-             breeds=0.004, max_count=120, group="critter", cooks_into="roasted cug"),
+             breeds=0.004, max_count=120, group="critter", cooks_into="roasted cug",
+             carcass="cug meat"),
     # Things only physics makes: tools, cooked food, ash.
     ItemKind("sharp flake", (190, 195, 205), edible=False, spawns=False, regrows=False,
-             wilt_chance=0.0, group="tool", hardness=8, mass=0.5),
+             wilt_chance=0.0, group="tool", hardness=8, mass=0.5, sharp=True),
     ItemKind("cracked nut", (215, 170, 100), energy=45, spawns=False, regrows=False,
              wilt_chance=0.002, group="nut"),
     ItemKind("roasted mushroom", (120, 75, 45), energy=28, spawns=False, regrows=False,
@@ -106,14 +122,14 @@ DEFAULT_ITEMS = (
              wilt_chance=0.01, group="debris"),
 
     # --- Trees and wood -------------------------------------------------------
-    ItemKind("tree", (34, 110, 50), edible=False, spawn_weight=1.2, regrows=False, wilt_chance=0.0,
+    ItemKind("tree", (34, 110, 50), edible=False, spawn_weight=1.2, regrows=False, wilt_chance=0.00003,
              group="tree", immovable=True, hardness=6, mass=50, burn_hours=40, ignites_at=9,
-             breaks_into="log", drops=(("apple", 0.002), ("fallen branch", 0.002))),
+             breaks_into="log", rots_into="log", drops=(("apple", 0.002), ("fallen branch", 0.002))),
     ItemKind("apple", (220, 60, 45), energy=25, spawns=False, regrows=False, wilt_chance=0.003,
              group="fruit"),
     ItemKind("fallen branch", (125, 95, 60), edible=False, spawns=False, regrows=False,
              wilt_chance=0.0005, group="wood", hardness=4, mass=2, burn_hours=8, ignites_at=5),
-    ItemKind("log", (95, 65, 40), edible=False, spawns=False, regrows=False, wilt_chance=0.0,
+    ItemKind("log", (95, 65, 40), edible=False, spawns=False, regrows=False, wilt_chance=0.0003,
              group="wood", immovable=True, hardness=6, mass=8, burn_hours=30, ignites_at=7),
     ItemKind("dry grass tuft", (200, 185, 110), edible=False, spawn_weight=1.2, habitat="dry",
              wilt_chance=0.003, group="plant", hardness=0.5, burn_hours=1, ignites_at=2),
@@ -122,19 +138,22 @@ DEFAULT_ITEMS = (
     ItemKind("reed", (110, 150, 80), edible=False, spawn_weight=1.5, habitat="near_water",
              wilt_chance=0.002, group="plant", hardness=1, burn_hours=1, ignites_at=4),
     ItemKind("fibre", (200, 190, 150), edible=False, spawns=False, regrows=False,
-             wilt_chance=0.001, group="material", burn_hours=1, ignites_at=3),
+             wilt_chance=0.001, group="material", burn_hours=1, ignites_at=3,
+             flexible=True, tensile=4, mass=0.2),
     ItemKind("clay lump", (165, 110, 85), edible=False, spawn_weight=0.8, habitat="near_water",
              regrows=False, wilt_chance=0.0, group="material", hardness=2, mass=2,
              cooks_into="clay pot"),
     ItemKind("clay pot", (190, 120, 80), edible=False, spawns=False, regrows=False, wilt_chance=0.0,
-             group="tool", hardness=3, mass=1.5, breaks_into="pottery shard",
+             group="tool", hardness=3, mass=1.5, breaks_into="pottery shard", brittle=0.05,
              holds_water="pot of water"),
     ItemKind("pot of water", (120, 140, 190), edible=False, spawns=False, regrows=False,
-             wilt_chance=0.0, group="tool", hardness=3, mass=3, water=40, empties_into="clay pot"),
+             wilt_chance=0.004, rots_into="clay pot", group="tool", hardness=3, mass=3, water=40,
+             empties_into="clay pot", breaks_into="pottery shard", brittle=0.05),   # left out, it dries up
     ItemKind("pottery shard", (175, 105, 70), edible=False, spawns=False, regrows=False,
-             wilt_chance=0.0, group="tool", hardness=5, mass=0.3),
+             wilt_chance=0.0, group="tool", hardness=5, mass=0.3, sharp=True),
     ItemKind("bird egg", (235, 230, 215), energy=20, spawn_weight=0.5, habitat="near_water",
-             wilt_chance=0.003, group="egg", hardness=0.5, breaks_into="", cooks_into="cooked egg"),
+             wilt_chance=0.003, group="egg", hardness=0.5, breaks_into="broken egg", brittle=0.3,
+             cooks_into="cooked egg"),
     ItemKind("cooked egg", (240, 210, 120), energy=30, spawns=False, regrows=False,
              wilt_chance=0.004, group="cooked"),
 
@@ -143,12 +162,12 @@ DEFAULT_ITEMS = (
              regrows=False, wilt_chance=0.0, group="stone", hardness=8, mass=1.5,
              breaks_into="flint blade", sparks=True),
     ItemKind("flint blade", (40, 45, 70), edible=False, spawns=False, regrows=False,
-             wilt_chance=0.0, group="tool", hardness=9, mass=0.5),
+             wilt_chance=0.0, group="tool", hardness=9, mass=0.5, sharp=True),
     ItemKind("beehive", (205, 160, 40), edible=False, spawn_weight=0.3, habitat="dry", regrows=False,
              wilt_chance=0.0, group="hive", immovable=True, hardness=2, stings=12.0,
              burn_hours=4, ignites_at=4),
     ItemKind("honeycomb", (245, 190, 50), energy=55, spawns=False, regrows=False,
-             wilt_chance=0.001, group="sweet"),
+             wilt_chance=0.001, group="sweet", sticky=2),
 
     # --- Hazards, medicine and seeds -------------------------------------------
     ItemKind("thorn bush", (80, 105, 60), edible=False, spawn_weight=0.8, regrows=False,
@@ -161,9 +180,53 @@ DEFAULT_ITEMS = (
 
     # --- Made by hand ---------------------------------------------------------
     ItemKind("sharpened stick", (150, 115, 70), edible=False, spawns=False, regrows=False,
-             wilt_chance=0.0003, group="tool", hardness=5, mass=1, burn_hours=4, ignites_at=5),
+             wilt_chance=0.0003, group="tool", hardness=5, mass=1, burn_hours=4, ignites_at=5,
+             sharp=True),
     ItemKind("cug meat", (200, 90, 90), energy=30, spawns=False, regrows=False,
              wilt_chance=0.006, group="meat", cooks_into="roasted cug"),
+    ItemKind("broken egg", (250, 220, 90), energy=12, spawns=False, regrows=False,
+             wilt_chance=0.02, group="egg"),
+
+    # --- Pines, vines and saplings --------------------------------------------
+    ItemKind("pine tree", (25, 80, 55), edible=False, spawn_weight=0.4, regrows=False,
+             wilt_chance=0.00003, rots_into="log", group="tree", immovable=True, hardness=6, mass=50,
+             burn_hours=50, ignites_at=7, breaks_into="log", drops=(("pine cone", 0.002),)),
+    ItemKind("pine cone", (150, 105, 75), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.003, group="wood", hardness=2, mass=0.3, burn_hours=2, ignites_at=3),
+    ItemKind("resin", (230, 150, 30), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0005, group="material", sticky=7, mass=0.3, burn_hours=3, ignites_at=2),
+    ItemKind("vine", (45, 140, 30), edible=False, spawn_weight=0.3, wilt_chance=0.002,
+             group="plant", flexible=True, tensile=5, mass=0.5, burn_hours=1, ignites_at=6),
+    ItemKind("sapling", (120, 190, 90), edible=False, spawn_weight=0.1, wilt_chance=0.001,
+             group="tree", immovable=True, hardness=2, mass=6, grows_into="tree", grow_days=120,
+             burn_hours=2, ignites_at=6),
+    ItemKind("springy pole", (175, 140, 85), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0005, group="wood", hardness=3, mass=1.5, burn_hours=3, ignites_at=5),
+    ItemKind("mud", (110, 85, 60), edible=False, spawn_weight=0.3, habitat="near_water",
+             wilt_chance=0.004, group="material", sticky=4, mass=2),
+
+    # --- Joined by hand: cord, glue and lashing --------------------------------
+    ItemKind("cord", (215, 200, 160), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0005, group="material", flexible=True, tensile=7, mass=0.2,
+             burn_hours=1, ignites_at=3),
+    ItemKind("corded stick", (140, 110, 80), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0003, group="tool", flexible=True, tensile=6, hardness=3, mass=1.2,
+             burn_hours=5, ignites_at=5),
+    ItemKind("resin stick", (170, 115, 45), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0003, group="tool", sticky=6, hardness=3, mass=1.2,
+             burn_hours=7, ignites_at=3),
+    ItemKind("spear", (165, 165, 185), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0, group="tool", hardness=9, mass=1.5, sharp=True, reach=2,
+             bond=6, parts=("stick", "flint blade")),
+    ItemKind("stone hammer", (105, 105, 110), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0, group="tool", hardness=8, mass=4, bond=6, parts=("stick", "grey rock")),
+    ItemKind("bow", (190, 150, 95), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0002, group="tool", hardness=9, mass=1.5, sharp=True, reach=4,
+             bond=7, parts=("springy pole", "cord")),
+    ItemKind("snare", (225, 180, 140), edible=False, spawns=False, regrows=False,
+             wilt_chance=0.0003, group="tool", mass=1, traps="snared cug"),
+    ItemKind("snared cug", (60, 160, 150), energy=35, spawns=False, regrows=False,
+             wilt_chance=0.002, group="critter", cooks_into="roasted cug", carcass="cug meat"),
 )
 
 # What striking one thing with another makes, beyond plain breaking: (held, target) -> result.
@@ -177,10 +240,37 @@ STRIKE_RECIPES = {
     ("sharp flake", "reed"): "fibre",
     ("flint blade", "reed"): "fibre",
     ("pottery shard", "reed"): "fibre",
-    ("sharp flake", "cug"): "cug meat",
-    ("flint blade", "cug"): "cug meat",
-    ("sharpened stick", "cug"): "cug meat",
+    ("sharp flake", "sapling"): "springy pole",
+    ("flint blade", "sapling"): "springy pole",
     ("stick", "beehive"): "honeycomb",
     ("fallen branch", "beehive"): "honeycomb",
     ("sharpened stick", "beehive"): "honeycomb",
+    ("stone hammer", "nut"): "cracked nut",
+}
+
+# Tapping: a sharp cut into something living makes it give something up, beside it,
+# without destroying it. (held, target) -> what appears on open ground next to it.
+TAP_RECIPES = {
+    ("sharp flake", "pine tree"): "resin",
+    ("flint blade", "pine tree"): "resin",
+    ("spear", "pine tree"): "resin",
+}
+
+# Pressing one thing onto another: {a, b} -> what they join into (either order).
+# Whether it holds is physics: see `binding_strength` in physics.py.
+JOIN_RECIPES = {
+    frozenset({"fibre"}): "cord",                          # two lengths of fibre twist into cord
+    frozenset({"cord", "stick"}): "corded stick",
+    frozenset({"vine", "stick"}): "corded stick",
+    frozenset({"resin", "stick"}): "resin stick",
+    frozenset({"corded stick", "flint blade"}): "spear",
+    frozenset({"corded stick", "sharp flake"}): "spear",
+    frozenset({"resin stick", "flint blade"}): "spear",
+    frozenset({"resin stick", "sharp flake"}): "spear",
+    frozenset({"corded stick", "grey rock"}): "stone hammer",
+    frozenset({"resin stick", "grey rock"}): "stone hammer",
+    frozenset({"cord", "springy pole"}): "bow",
+    frozenset({"vine", "springy pole"}): "bow",
+    frozenset({"cord", "sharpened stick"}): "snare",
+    frozenset({"vine", "sharpened stick"}): "snare",
 }

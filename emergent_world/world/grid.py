@@ -71,6 +71,10 @@ class World:
                     for k in c.items])
                 self._odds[first_fill, zone] = weights / weights.sum() if weights.sum() else None
         self._wilt = np.array([0.0] + [k.wilt_chance for k in c.items])
+        # What each item leaves when it wilts (a fallen tree leaves a log), and what
+        # traps a critter stepping onto it becomes.
+        self._rot = np.array([0] + [c.item_id(k.rots_into) for k in c.items], dtype=np.int8)
+        self._trap = np.array([0] + [c.item_id(k.traps) for k in c.items], dtype=np.int8)
 
     @staticmethod
     def _fits(habitat: str, zone: int) -> bool:
@@ -93,7 +97,7 @@ class World:
         """Items wilt or wash away at their own rates; new ones appear on empty
         grass. `growth` scales how fast things regrow (seasons and weather)."""
         wilt = self.rng.random(self.plants.shape) < self._wilt[self.plants]
-        self.plants[wilt] = NO_PLANT
+        self.plants[wilt] = self._rot[self.plants[wilt]]
         empty = (self.terrain == GRASS) & (self.plants == NO_PLANT)
         self._sprout(empty & (self.rng.random(empty.shape) < self.config.regrow_chance * growth), False)
 
@@ -113,8 +117,8 @@ class World:
                 bolting = near and self.rng.random() < kind.flees
                 if bolting or self.rng.random() < kind.wanders:
                     options = [(x + dx, y + dy) for dx, dy in steps
-                               if self.is_walkable(x + dx, y + dy) and self.plants[x + dx, y + dy] == NO_PLANT
-                               and not occupied[x + dx, y + dy]]
+                               if self.is_walkable(x + dx, y + dy) and not occupied[x + dx, y + dy]
+                               and (self.plants[x + dx, y + dy] == NO_PLANT or self._trap[self.plants[x + dx, y + dy]])]
                     if bolting:   # run, preferring tiles with nobody next to them
                         calm = [(a, b) for a, b in options
                                 if not any(self.in_bounds(a + dx, b + dy) and occupied[a + dx, b + dy] for dx, dy in steps)]
@@ -122,6 +126,11 @@ class World:
                     if options:
                         nx, ny = options[int(self.rng.integers(0, len(options)))]
                         self.plants[x, y] = NO_PLANT
+                        caught = self._trap[self.plants[nx, ny]]
+                        if caught:   # stepped into a snare: caught fast
+                            self.plants[nx, ny] = caught
+                            count -= 1
+                            continue
                         self.plants[nx, ny] = item_id
                         x, y = nx, ny
                 if count < kind.max_count and self.rng.random() < kind.breeds * growth:

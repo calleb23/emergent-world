@@ -342,6 +342,13 @@ class Simulation:
         if held is None:
             return
         x, y = agent.x, agent.y
+        if held.sticky and self.rng.random() < held.sticky / 20:
+            self._first(agent, ("sticky", held.look), f"Tried to put down a {held.look}; it stuck to their fingers")
+            return
+        if physics.reinforce(self, agent):
+            return
+        if self.world.plants[x, y] and physics.join(self, agent):
+            return
         if self.world.fire[x, y] and held.burn_hours:
             agent.hands = 0
             self.world.fire[x, y] += held.burn_hours
@@ -357,8 +364,14 @@ class Simulation:
                 self._first(agent, ("dropped stick",), "Put a stick down")
             return
         if self.world.plants[x, y] == 0:
-            self.world.plants[x, y] = agent.hands
             agent.hands = 0
+            if held.brittle and held.breaks_into and self.rng.random() < held.brittle:
+                self.world.plants[x, y] = self.config.item_id(held.breaks_into)
+                if held.water:
+                    self.world.wet[x, y] = 1.0   # spilled
+                self._first(agent, ("smashed", held.look), f"Put down a {held.look} too hard; it broke")
+                return
+            self.world.plants[x, y] = self.config.item_id(held.look)
             self._first(agent, ("dropped", held.color), f"Put down a {held.look}")
 
     def _give(self, agent: Agent):
@@ -458,6 +471,9 @@ class Simulation:
             agent.take_damage(physics.BURN_DAMAGE, "fire")
             agent.memory.burned(physics.FIRE_COLOR)
             self._first(agent, ("burned",), "Stepped into fire and was burned")
+        carried = c.item(agent.hands)
+        if carried is not None and not agent.asleep:
+            agent.fatigue = min(1.0, agent.fatigue + c.carry_fatigue * carried.mass)   # heavy loads tire
         underfoot = c.item(int(self.world.plants[agent.x, agent.y]))
         if underfoot is not None and underfoot.prickly:
             agent.take_damage(underfoot.prickly, "thorns")

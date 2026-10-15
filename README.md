@@ -74,6 +74,33 @@ outcomes. People can strike what's underfoot with what they hold, or rub them to
 - **Living things**: trees drop apples and fallen branches beside them; grass seeds left
   on open ground grow into green plants after a week; eating a blue flower ends sickness.
 - **Stoking**: dropping something burnable into a fire feeds it.
+
+### Tension and adhesion
+
+- **Joining**: drop something onto something else to press them together
+  (`JOIN_RECIPES`). Whether it holds is physics: a flexible binder ties with its
+  **tensile strength**, a sticky one glues with its **adhesion**, and the binder must
+  bear twice the weight of what it holds. Fibre is too weak to lash a rock; cord isn't.
+  Wet glue barely holds.
+  - fibre + fibre → cord; cord or vine + stick → corded stick; resin + stick → resin stick
+  - corded or resin stick + flint blade or flake → **spear**; + grey rock → **stone hammer**
+  - cord or vine + springy pole (cut from a sapling) → **bow**; + sharpened stick → **snare**
+- **Bonds under strain**: every blow strains a joined tool's bond, most against hard
+  targets. Eventually it gives way and the tool falls back into its parts.
+- **Force and reach**: heavier tools hit harder. A spear reaches 2 tiles and a bow 4,
+  so a fleeing cug can be taken from a distance. Anything sharp kills a critter and
+  leaves its carcass (cug meat).
+- **Snares**: a cug that steps onto a snare is caught fast.
+- **Tapping**: cutting a pine tree makes resin ooze out beside it; the tree survives.
+- **Stickiness**: sticky things sometimes cling to the fingers when you try to put them down.
+- **Brittleness**: eggs and pots can smash when put down; a smashed pot of water soaks the ground.
+- **Wetness**: rain soaks the ground and what's on it, and sun dries it. Wet tinder needs
+  far more heat to catch.
+- **Wind**: storms can tear an unreinforced shelter apart. Lashing a shelter with cord
+  or vine stops that; daubing it with mud halves the risk and fireproofs it.
+- **Weight**: carrying heavy things tires you faster.
+- **Rot and growth**: trees eventually fall, leaving a log that slowly rots; a pot of
+  water left out dries up; saplings grow into trees after about four months.
 - **Fire** burns stick piles, shelters and dry plants, spreads its heat to burnable
   neighbours, is put out by rain, leaves ash, and can be started by lightning. Food in
   a fire cooks (roasting makes the pale mushroom safe and cracks nuts). Standing in fire

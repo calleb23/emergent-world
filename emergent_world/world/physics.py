@@ -9,6 +9,18 @@ never scripted outcomes (see world/items.py for the properties).
   sharp, strips a reed to fibre, butchers a cug; a stick knocks honeycomb from a
   hive). Stinging things sting whoever strikes them. Flint struck on something
   hard throws sparks that can light dry tinder beside it.
+- Reach: a spear or bow strikes a critter a few tiles off when nothing is underfoot.
+  Anything sharp kills a critter, leaving its carcass.
+- Force and bonds: heavier tools hit harder. A joined tool's bond takes strain with
+  every blow, and can give way, dropping it back into its parts.
+- Joining (tension and adhesion): pressing one thing onto another can join them, if
+  a binder holds: flexible things tie with their tensile strength, sticky things
+  glue with their adhesion. A binder must bear twice the weight it holds. Wet glue
+  barely holds.
+- Wetness: rain soaks the ground and what's on it; sun dries it. Wet tinder is
+  hard to light. Spilled water soaks a tile.
+- Wind: storms can blow a shelter apart, unless it's lashed with cord or daubed
+  with mud. Daubed shelters don't burn.
 - Fire: burns a tile's fuel (burnable items, stick piles, shelters), spreads its
   heat to burnable neighbours, is put out by rain, and leaves ash. Lightning in a
   storm can start one. Food left in a fire for a few hours cooks. Anyone standing
@@ -29,6 +41,9 @@ SHELTER_FUEL = 30
 BURN_DAMAGE = 8.0         # health lost per hour standing in fire
 SPARK_HEAT = 3.0          # heat flint sparks throw onto each burnable neighbour
 SPARK_HARDNESS = 6        # flint only sparks against something this hard
+SNAP_STRAIN = 0.02        # chance per blow a bond gives, per point of target hardness over bond
+WIND_CHANCE = 0.004       # chance per storm hour that wind tears apart an unreinforced shelter
+LASHED, DAUBED = 1, 2     # shelter reinforcement bits
 
 NEIGHBOURS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
@@ -38,15 +53,20 @@ def setup(world):
     world.heat = np.zeros((world.width, world.height), dtype=np.float32)
     world.cooking = np.zeros((world.width, world.height), dtype=np.int16)
     world.growing = np.zeros((world.width, world.height), dtype=np.int16)   # hours a seed has lain
+    world.wet = np.zeros((world.width, world.height), dtype=np.float32)     # 0 dry .. 1 soaked
+    world.reinforced = np.zeros((world.width, world.height), dtype=np.int8)
 
 
 def burnable(world, config, x, y) -> float:
     """Heat needed to set this tile alight, or 0 if there's nothing to burn."""
     kind = config.item(int(world.plants[x, y]))
+    soak = 1.0 + 3.0 * float(world.wet[x, y])   # wet things take far more heat
     if kind is not None and kind.burn_hours:
-        return kind.ignites_at
+        return kind.ignites_at * soak
+    if world.shelter[x, y] and world.reinforced[x, y] & DAUBED:
+        return 0.0
     if world.piles[x, y] or world.shelter[x, y]:
-        return 5.0
+        return 5.0 * soak
     return 0.0
 
 
@@ -64,6 +84,7 @@ def ignite(sim, x, y, cause: str = "") -> bool:
         sim.chronicle("A shelter burned down", once=("shelter burned", x, y))
     world.piles[x, y] = 0
     world.shelter[x, y] = False
+    world.reinforced[x, y] = 0
     if fuel <= 0:
         return False
     world.fire[x, y] = fuel
@@ -81,6 +102,7 @@ def tick(sim):
     world, config, rng = sim.world, sim.config, sim.rng
     world.heat *= HEAT_FADE
     climate = sim.climate
+    weather(sim)
     if climate is not None and climate.weather == "storm" and rng.random() < LIGHTNING_CHANCE:
         x, y = int(rng.integers(0, world.width)), int(rng.integers(0, world.height))
         if burnable(world, config, x, y):
@@ -152,28 +174,175 @@ def fire_near(world, x, y, reach: int = 1) -> bool:
 
 
 def strike(sim, agent) -> None:
-    """Hit what's underfoot with what's held."""
-    from emergent_world.world.items import STRIKE_RECIPES
+    """Hit what's underfoot with what's held; a long tool can reach a critter nearby."""
+    from emergent_world.world.items import STRIKE_RECIPES, TAP_RECIPES
     world, config = sim.world, sim.config
     held = config.item(agent.hands)
-    target = config.item(int(world.plants[agent.x, agent.y]))
-    if held is None or target is None:
+    if held is None:
         return
-    if target.stings:
+    x, y = agent.x, agent.y
+    target = config.item(int(world.plants[x, y]))
+    distance = 0
+    if target is None and held.reach:
+        found = _critter_within(world, config, x, y, held.reach)
+        if found is None:
+            return
+        x, y, distance = found
+        target = config.item(int(world.plants[x, y]))
+    if target is None:
+        return
+    if target.stings and not distance:
         agent.take_damage(target.stings, "stings")
         agent.memory.burned(target.color, 0.5)
         sim._first(agent, ("stung", target.look), f"Struck a {target.look} and was stung")
     if held.sparks and target.hardness >= SPARK_HARDNESS:
-        sparks(sim, agent.x, agent.y)
+        sparks(sim, x, y)
         sim._first(agent, ("sparks",), f"Struck a {held.look} on a {target.look}; sparks flew")
-    result = STRIKE_RECIPES.get((held.look, target.look)) or target.breaks_into
-    if not result or held.hardness < target.hardness or sim.rng.random() > 0.5:
+    if held.parts and held.bond and _bond_gives(sim, agent, held, target):
         return
-    world.plants[agent.x, agent.y] = config.item_id(result)
-    sim._first(agent, ("broke", target.look, result),
-               f"Struck a {target.look} with a {held.look}, and got a {result}")
-    sim.chronicle(f"{sim_label(agent)} struck a {target.look} with a {held.look} and made the first "
-                  f"{result}", once=("made", result))
+    if held.hardness < target.hardness:
+        return
+    force = min(0.9, 0.3 + 0.2 * held.mass) / (1 + 0.5 * distance)   # heavier hits harder; far is harder
+    if sim.rng.random() > force:
+        return
+    tapped = TAP_RECIPES.get((held.look, target.look))
+    if tapped:
+        if _place_beside(sim, x, y, tapped):
+            sim._first(agent, ("tapped", target.look), f"Cut into a {target.look}; {tapped} oozed out")
+            sim.chronicle(f"{sim_label(agent)} cut a {target.look} and got the first {tapped}",
+                          once=("made", tapped))
+        return
+    result = STRIKE_RECIPES.get((held.look, target.look))
+    if not result and held.sharp and target.carcass:
+        result = target.carcass
+    result = result or target.breaks_into
+    if not result:
+        return
+    world.plants[x, y] = config.item_id(result)
+    how = f"threw down a {target.look} from {distance} tiles away" if distance else f"struck a {target.look}"
+    sim._first(agent, ("broke", target.look, result), f"{how.capitalize()} with a {held.look}, and got a {result}")
+    sim.chronicle(f"{sim_label(agent)} {how} with a {held.look} and made the first {result}",
+                  once=("made", result))
+
+
+def _critter_within(world, config, x, y, reach):
+    """The nearest critter within `reach` tiles of (x, y), as (x, y, distance), or None."""
+    best = None
+    for item_id, kind in enumerate(config.items, start=1):
+        if not kind.wanders:
+            continue
+        x0, y0 = max(0, x - reach), max(0, y - reach)
+        for cx, cy in np.argwhere(world.plants[x0:x + reach + 1, y0:y + reach + 1] == item_id):
+            cx, cy = int(cx) + x0, int(cy) + y0
+            d = max(abs(cx - x), abs(cy - y))
+            if best is None or d < best[2]:
+                best = (cx, cy, d)
+    return best
+
+
+def _bond_gives(sim, agent, held, target) -> bool:
+    """Every blow strains a joined tool's bond; hard targets strain it most."""
+    strain = SNAP_STRAIN * max(0.5, target.hardness - held.bond + 1)
+    if sim.rng.random() > strain:
+        return False
+    config = sim.config
+    first, *rest = held.parts
+    agent.hands = config.item_id(first)
+    for look in rest:
+        _place_beside(sim, agent.x, agent.y, look, here_too=True)
+    sim.log(agent, f"The {held.look}'s binding gave way; it fell apart")
+    sim.chronicle(f"A {held.look} came apart in {sim_label(agent)}'s hands", once=("snapped", held.look))
+    return True
+
+
+def _place_beside(sim, x, y, look, here_too=False) -> bool:
+    world = sim.world
+    spots = ([(x, y)] if here_too else []) + [(x + dx, y + dy) for dx, dy in NEIGHBOURS]
+    for nx, ny in spots:
+        if world.is_walkable(nx, ny) and world.plants[nx, ny] == 0 and not world.fire[nx, ny]:
+            world.plants[nx, ny] = sim.config.item_id(look)
+            return True
+    return False
+
+
+def binding_strength(world, a, b, x, y):
+    """How strongly a and b would hold together, and the weight that bond must bear.
+    Flexible things tie (tensile strength); sticky things glue (adhesion, which
+    water ruins). The load is the heaviest part that isn't itself a binder."""
+    soaked = float(world.wet[x, y]) > 0.5
+    strength, load = 0.0, 0.0
+    for kind in (a, b):
+        holds = max(kind.tensile if kind.flexible else 0.0, kind.sticky * (0.2 if soaked else 1.0))
+        if holds:
+            strength = max(strength, holds)
+        else:
+            load = max(load, kind.mass)
+    return strength, load
+
+
+def join(sim, agent) -> bool:
+    """Press what's held onto what's underfoot. Returns True if anything happened."""
+    from emergent_world.world.items import JOIN_RECIPES
+    world, config = sim.world, sim.config
+    held = config.item(agent.hands)
+    x, y = agent.x, agent.y
+    below = config.item(int(world.plants[x, y]))
+    if held is None or below is None:
+        return False
+    result = JOIN_RECIPES.get(frozenset({held.look, below.look}))
+    if not result:
+        return False
+    strength, load = binding_strength(world, held, below, x, y)
+    if strength < 2 * load or strength == 0:
+        sim._first(agent, ("slipped", result), f"Tried to bind a {held.look} to a {below.look}; it wouldn't hold")
+        return True
+    agent.hands = 0
+    world.plants[x, y] = config.item_id(result)
+    sim._first(agent, ("joined", result), f"Pressed a {held.look} onto a {below.look}, and made a {result}")
+    sim.chronicle(f"{sim_label(agent)} joined a {held.look} and a {below.look} into the first {result}",
+                  once=("made", result))
+    return True
+
+
+def reinforce(sim, agent) -> bool:
+    """Lash a shelter with something that ties, or daub it with something sticky."""
+    world, config = sim.world, sim.config
+    held = config.item(agent.hands)
+    x, y = agent.x, agent.y
+    if held is None or not world.shelter[x, y]:
+        return False
+    if held.flexible and held.tensile >= 4 and not world.reinforced[x, y] & LASHED:
+        world.reinforced[x, y] |= LASHED
+        how = "lashed"
+    elif held.sticky >= 3 and not world.reinforced[x, y] & DAUBED:
+        world.reinforced[x, y] |= DAUBED
+        how = "daubed"
+    else:
+        return False
+    agent.hands = 0
+    sim._first(agent, ("reinforced", how), f"{how.capitalize()} a shelter with a {held.look}")
+    sim.chronicle(f"{sim_label(agent)} {how} a shelter with a {held.look}", once=("reinforced", how))
+    return True
+
+
+def weather(sim) -> None:
+    """Rain soaks things and sun dries them; storm winds pull at shelters."""
+    world, rng, climate = sim.world, sim.rng, sim.climate
+    if climate is None:
+        world.wet *= 0.97
+        return
+    if wet(sim):
+        world.wet += 0.15 * (1.0 - world.wet)
+    else:
+        world.wet *= 0.85 if climate.light > 0.5 else 0.97
+    if climate.weather == "storm":
+        for x, y in np.argwhere(world.shelter & (world.reinforced & LASHED == 0)):
+            chance = WIND_CHANCE * (0.5 if world.reinforced[x, y] & DAUBED else 1.0)
+            if rng.random() < chance:
+                world.shelter[x, y] = False
+                world.piles[x, y] //= 2
+                world.reinforced[x, y] = 0
+                sim.chronicle("A storm wind tore a shelter apart", once="wind")
 
 
 def sparks(sim, x, y) -> None:
