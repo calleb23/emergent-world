@@ -36,6 +36,8 @@ class World:
         # Shelters people build: stick piles growing into finished shelters.
         self.piles = np.zeros((self.width, self.height), dtype=np.int16)
         self.shelter = np.zeros((self.width, self.height), dtype=bool)
+        from emergent_world.world import physics
+        physics.setup(self)   # fire, heat and cooking layers
 
         self._make_lakes()
         self._make_habitats()
@@ -65,7 +67,7 @@ class World:
         for first_fill in (False, True):
             for zone in (0, 1, 2):
                 weights = np.array([
-                    k.spawn_weight if (first_fill or k.regrows) and self._fits(k.habitat, zone) else 0.0
+                    k.spawn_weight if k.spawns and (first_fill or k.regrows) and self._fits(k.habitat, zone) else 0.0
                     for k in c.items])
                 self._odds[first_fill, zone] = weights / weights.sum() if weights.sum() else None
         self._wilt = np.array([0.0] + [k.wilt_chance for k in c.items])

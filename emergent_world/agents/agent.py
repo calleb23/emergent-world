@@ -17,6 +17,8 @@ class Action(IntEnum):
     PICK_UP = 7   # take the item underfoot into the hands
     DROP = 8      # put down what's in the hands (sticks dropped on one spot pile up)
     GIVE = 9      # hand what's held to the nearest person next to you
+    STRIKE = 10   # hit what's underfoot with what's held
+    RUB = 11      # rub what's held against what's underfoot (friction makes heat)
 
 
 MOVES = {

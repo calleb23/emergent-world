@@ -197,7 +197,9 @@ const DATA = /*VIEWER_DATA*/null;
     legend.appendChild(s);
   });
   legend.insertAdjacentHTML("beforeend",
-    `<span><i class="sw" style="background:${WATER}"></i>pond</span><span><i class="ring"></i>followed, and how far they see</span>`);
+    `<span><i class="sw" style="background:${WATER}"></i>pond</span><span><i class="sw" style="background:rgb(255,125,35)"></i>fire</span>` +
+    `<span><i class="sw" style="background:#8a6a44"></i>shelter</span><span><i class="sw" style="background:#6b5236"></i>stick pile</span>` +
+    `<span><i class="ring"></i>followed, and how far they see</span>`);
 
   function parseAgents(flat) {
     const out = [];
@@ -237,6 +239,7 @@ const DATA = /*VIEWER_DATA*/null;
     if (auto && f[0] >= 0) followed = f[0];
     return { tick: t, weather: DATA.weatherNames[f[1]], temp: f[2], season: season(t),
              plants: plantsOn(Math.floor(since / TPD)), agents: parseAgents(f[3]),
+             fires: f[4] || [], shelters: f[5] || [], piles: f[6] || [],
              followed, person: DATA.people[followed] };
   }
 
@@ -278,6 +281,15 @@ const DATA = /*VIEWER_DATA*/null;
       if (terrain[i] === 1) { ctx.fillStyle = WATER; ctx.fillRect(x * cell, y * cell, cell + 0.5, cell + 0.5); }
       else if (s.plants[i]) { ctx.fillStyle = ITEM_COLORS[s.plants[i]]; ctx.fillRect(x * cell + cell * 0.2, y * cell + cell * 0.2, cell * 0.6, cell * 0.6); }
     }
+    // Stick piles, shelters and fires.
+    const at = i => [(i % W) * cell, Math.floor(i / W) * cell];
+    ctx.fillStyle = "#6b5236";
+    for (const i of s.piles || []) { const [x, y] = at(i); ctx.fillRect(x + cell * 0.15, y + cell * 0.55, cell * 0.7, cell * 0.3); }
+    for (const i of s.shelters || []) {
+      const [x, y] = at(i);
+      ctx.fillStyle = "#8a6a44";
+      ctx.beginPath(); ctx.moveTo(x - cell * 0.1, y + cell); ctx.lineTo(x + cell / 2, y - cell * 0.1); ctx.lineTo(x + cell * 1.1, y + cell); ctx.fill();
+    }
     // Night falls over everything.
     const dark = 1 - light(s.tick);
     if (dark > 0) { ctx.fillStyle = `rgba(8,12,30,${(dark * 0.7).toFixed(3)})`; ctx.fillRect(0, 0, size, size); }
@@ -294,6 +306,14 @@ const DATA = /*VIEWER_DATA*/null;
         if (s.weather === "snow") { ctx.beginPath(); ctx.arc(x, y, Math.max(1, cell * 0.12), 0, Math.PI * 2); ctx.fill(); }
         else { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - cell * 0.3, y + cell * 0.9); ctx.stroke(); }
       }
+    }
+    // Fires glow through the dark.
+    for (const i of s.fires || []) {
+      const [x, y] = at(i);
+      const g = ctx.createRadialGradient(x + cell / 2, y + cell / 2, 0, x + cell / 2, y + cell / 2, cell * 2.5);
+      g.addColorStop(0, "rgba(255,170,60,0.55)"); g.addColorStop(1, "rgba(255,120,30,0)");
+      ctx.fillStyle = g; ctx.fillRect(x - cell * 2, y - cell * 2, cell * 5, cell * 5);
+      ctx.fillStyle = "rgb(255,125,35)"; ctx.fillRect(x + cell * 0.15, y + cell * 0.15, cell * 0.7, cell * 0.7);
     }
     // People: dimmer and bluish while asleep.
     for (const a of s.agents) {

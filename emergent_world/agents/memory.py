@@ -74,6 +74,10 @@ class FoodMemory:
         self.useless.add(color)
         self.trust.pop(color, None)
 
+    def burned(self, color, strength: float = 0.8):
+        """Burned by something: wary of what it looked like (wariness steers away from it)."""
+        self.aversion[color] = min(1.0, self.level(color) + strength)
+
     def saw_kin_bite_inedible(self, color):
         """Watching a relative bite a stick to no effect teaches the same lesson."""
         self.useless.add(color)

@@ -7,6 +7,7 @@ and a rock is just grey.
 import numpy as np
 
 from emergent_world.world.grid import LIQUIDS, WATER
+from emergent_world.world.physics import FIRE_COLOR
 
 # Eight compass directions, one vision ray each.
 RAY_DIRECTIONS = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
@@ -64,6 +65,7 @@ def sense_all(agents: list, world, config, reach: int | None = None) -> np.ndarr
     ys = np.array([a.y for a in agents])
     occupied = build_occupancy(world, agents)
     colors = palette(config)
+    fire = np.array(_norm(FIRE_COLOR))
     water, others = np.array(_norm(WATER_COLOR)), np.array(_norm(AGENT_COLOR))
 
     for r, (dx, dy) in enumerate(RAY_DIRECTIONS):
@@ -83,8 +85,10 @@ def sense_all(agents: list, world, config, reach: int | None = None) -> np.ndarr
 
             agent_there = occupied[cx, cy]
             plant = world.plants[cx, cy]
-            new_object = inside & ~object_found & (agent_there | (plant > 0))
-            color = np.where(agent_there[:, None], others, colors[plant])
+            burning = world.fire[cx, cy] > 0
+            new_object = inside & ~object_found & (agent_there | (plant > 0) | burning)
+            color = np.where(agent_there[:, None], others,
+                             np.where(burning[:, None], fire, colors[plant]))
             inputs[new_object, i + 4:i + 7] = color[new_object]
             inputs[new_object, i + 7] = closeness
             object_found |= new_object
@@ -131,6 +135,8 @@ def sense(agent, world, occupied: np.ndarray, config) -> np.ndarray:
                 seen = None
                 if occupied[x, y]:
                     seen = others
+                elif world.fire[x, y]:
+                    seen = _norm(FIRE_COLOR)
                 elif world.plants[x, y] in plant_colors:
                     seen = plant_colors[int(world.plants[x, y])]
                 if seen is not None:
@@ -162,7 +168,8 @@ def _feelings(agent, world, config) -> list:
     sheltered = world.shelter_near(agent.x, agent.y, 1) is not None
     cold_wet = 0.0
     if climate is not None and not sheltered:
-        bad = climate.weather in ("rain", "storm", "snow") or (climate.is_night and climate.temperature < 6)
-        cold_wet = 1.0 if bad else 0.0
+        from emergent_world.world.physics import fire_near
+        cold_night = climate.is_night and climate.temperature < 6 and not fire_near(world, agent.x, agent.y)
+        cold_wet = 1.0 if climate.weather in ("rain", "storm", "snow") or cold_night else 0.0
     pile = min(1.0, world.piles[agent.x, agent.y] / config.sticks_per_shelter)
     return [*hands, agent.boredom, cold_wet, light, 1.0 if sheltered else 0.0, pile]

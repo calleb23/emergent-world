@@ -173,6 +173,13 @@ class Config:
         """The kind of item with this map id (0 = nothing)."""
         return self.items[item_id - 1] if 0 < item_id <= len(self.items) else None
 
+    def item_id(self, look: str) -> int:
+        """The map id of the item with this look (0 if there's none)."""
+        for i, kind in enumerate(self.items, start=1):
+            if kind.look == look:
+                return i
+        return 0
+
     def look_of(self, color) -> str:
         for kind in self.items:
             if kind.color == color:

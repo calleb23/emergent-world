@@ -51,6 +51,24 @@ python -m pytest                # run the tests
 Every run saves `runs/seed_<n>/deaths.csv` (each death with its cause) and
 `runs/seed_<n>/ticks.csv` (population, plants and average needs per tick).
 
+## Physics
+
+`world/physics.py`: general rules over material properties (hardness, weight, what
+something breaks into, whether and how it burns, what heat does to it), never scripted
+outcomes. People can strike what's underfoot with what they hold, or rub them together.
+
+- **Strike**: something held at least as hard as its target can break it. Rock on rock
+  chips a sharp flake; a rock cracks a nut.
+- **Rub**: rubbing burnable things builds heat; kept up long enough, fire.
+- **Fire** burns stick piles, shelters and dry plants, spreads its heat to burnable
+  neighbours, is put out by rain, leaves ash, and can be started by lightning. Food in
+  a fire cooks (roasting makes the pale mushroom safe and cracks nuts). Standing in fire
+  burns; sitting next to one keeps off a cold night.
+
+In a two-year test run (seed 0) nobody was told any of this, and: the first sharp flake
+was struck on day 26, lightning started a fire on day 87, the first nut was cracked and
+eaten on day 341, and someone made fire by rubbing sticks early in year 2.
+
 ## Time
 
 **1 tick = 1 hour.** Body needs are set on that clock: with nothing to drink an agent dies
@@ -102,6 +120,9 @@ world after five lifetimes.
   | nut | rich food, rare | far from water |
   | grey rock, stick | can't be eaten; agents learn to stop trying | anywhere |
   | cug | a fine meal, if you can catch one | near water |
+  | sharp flake, cracked nut, roasted mushroom, roasted cug, ash | only made by physics | - |
+
+  **Nuts are locked in a hard shell**: crack one with something harder, or roast it.
 
   The **cug** is the world's first critter: small, teal and skittish. Cugs wander,
   bolt when someone gets next to them, and breed when there's room (busy in spring,

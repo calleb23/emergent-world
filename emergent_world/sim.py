@@ -11,6 +11,7 @@ from emergent_world.agents.names import label, make_name
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
 from emergent_world.stats import Stats
+from emergent_world.world import physics
 from emergent_world.world.climate import Climate
 from emergent_world.world.grid import World
 
@@ -233,6 +234,7 @@ class Simulation:
         if self.climate is not None:
             self.climate.tick()
         self.world.tick(self.climate.growth if self.climate is not None else 1.0)
+        physics.tick(self)
         living = self.living
         occupied = np.zeros((self.world.width, self.world.height), dtype=bool)
         for a in living:
@@ -285,6 +287,10 @@ class Simulation:
             self._drop(agent)
         elif action == Action.GIVE:
             self._give(agent)
+        elif action == Action.STRIKE:
+            physics.strike(self, agent)
+        elif action == Action.RUB:
+            physics.rub(self, agent)
         elif action == Action.DRINK:
             if self.world.next_to_liquid(agent.x, agent.y):
                 if "first drink" not in agent.firsts:
@@ -421,6 +427,10 @@ class Simulation:
             if agent.asleep:
                 hunger *= c.sleep_drain
                 thirst *= c.sleep_drain
+        if self.world.fire[agent.x, agent.y]:
+            agent.take_damage(physics.BURN_DAMAGE, "fire")
+            agent.memory.burned(physics.FIRE_COLOR)
+            self._first(agent, ("burned",), "Stepped into fire and was burned")
         out_in_it = behaviour.exposed(self, agent)
         if out_in_it:
             hunger *= c.exposure_hunger

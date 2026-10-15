@@ -21,7 +21,8 @@ from urllib.parse import parse_qs, urlparse
 
 from emergent_world.config import Config
 from emergent_world.sim import Simulation
-from emergent_world.webview import agent_rows, climate_info, history, page, person, plant_string, static_info
+from emergent_world.webview import (agent_rows, climate_info, history, page, person, plant_string,
+                                    static_info, world_marks)
 
 SPEEDS = (1, 6, 24, 96, 240, 720)   # hours per second
 REPO = Path(__file__).resolve().parent.parent
@@ -104,6 +105,7 @@ class LiveWorld:
                 "tick": sim.tick_count,
                 **climate_info(sim),
                 "plants": plant_string(sim.world),
+                **world_marks(sim.world),
                 "agents": agent_rows(sim),
                 "followed": followed.id if followed else -1,
                 "person": person(followed, sim.tick_count, sim) if followed else None,

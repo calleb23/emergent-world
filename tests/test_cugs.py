@@ -5,7 +5,7 @@ from emergent_world.config import Config
 from emergent_world.sim import Simulation
 from emergent_world.world.grid import NO_PLANT
 
-CUG = len(Config().items)   # the cug is the last item in the table
+CUG = Config().item_id("cug")
 
 
 def _empty_sim():

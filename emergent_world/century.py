@@ -62,7 +62,8 @@ def run(years: int, seed: int, founders: str, replay_years: float, out_dir: Path
             "stick_piles": int((sim.world.piles > 0).sum()),
             "mood": round(sum(mood_samples) / max(1, len(mood_samples)), 3),
             "aversion_gene": round(sum(a.aversion_gain for a in living) / max(1, len(living)), 2),
-            "cugs": int((sim.world.plants == len(config.items)).sum()),
+            "cugs": int((sim.world.plants == config.item_id("cug")).sum()),
+            "fires": int((sim.world.fire > 0).sum()),
         }
         births_before = sim.stats.births
         yearly.append(row)

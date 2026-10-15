@@ -13,7 +13,8 @@ from pathlib import Path
 
 from emergent_world.config import TICKS_PER_DAY, TICKS_PER_YEAR, Config
 from emergent_world.sim import Simulation
-from emergent_world.webview import agent_rows, climate_info, history, page, person, plant_string, static_info
+from emergent_world.webview import (agent_rows, climate_info, history, page, person, plant_string,
+                                    static_info, world_marks)
 
 FRAME_EVERY = 6        # ticks (hours) between recorded frames
 KEYFRAME_DAYS = 10     # a full plant map every this many days; changes in between
@@ -41,8 +42,10 @@ def record(config: Config, seed: int, run_years: float, founders: str, sim: Simu
 
     def snapshot():
         weather = climate_info(sim)
+        marks = world_marks(world)
         frames.append([sim.followed_id if sim.followed_id is not None else -1,
-                       WEATHER.index(weather["weather"]), weather["temp"], agent_rows(sim)])
+                       WEATHER.index(weather["weather"]), weather["temp"], agent_rows(sim),
+                       marks["fires"], marks["shelters"], marks["piles"]])
 
     for a in sim.agents:
         known[a.id] = a

@@ -86,3 +86,12 @@ def person(agent, now: int, sim=None) -> dict:
 def history(sim, limit: int | None = None) -> list:
     rows = [[t, text] for t, text in sim.history]
     return rows[-limit:] if limit else rows
+
+
+def world_marks(world) -> dict:
+    """Fires, shelters and stick piles, as flat tile indices (row by row)."""
+    def tiles(mask):
+        xs, ys = mask.nonzero()
+        return [int(y) * world.width + int(x) for x, y in zip(xs, ys)]
+    return {"fires": tiles(world.fire > 0), "shelters": tiles(world.shelter),
+            "piles": tiles((world.piles > 0) & ~world.shelter)}

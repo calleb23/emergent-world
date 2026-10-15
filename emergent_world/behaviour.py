@@ -12,6 +12,7 @@ feel as a result, which their brains sense and learn from:
 """
 
 ACTIVITIES = ("", "sleeping", "sheltering", "drinking", "eating", "picking something up",
+              "striking something", "rubbing something",
               "putting something down", "giving something", "carrying something", "grieving",
               "following a parent", "looking for water", "looking for food", "resting",
               "wandering", "out in the weather")
@@ -22,8 +23,13 @@ def exposed(sim, agent) -> bool:
     climate = sim.climate
     if climate is None:
         return False
-    bad = climate.weather in ("rain", "storm", "snow") or (climate.is_night and climate.temperature < 6)
-    return bad and sim.world.shelter_near(agent.x, agent.y, 1) is None
+    if sim.world.shelter_near(agent.x, agent.y, 1) is not None:
+        return False
+    if climate.weather in ("rain", "storm", "snow"):
+        return True
+    cold_night = climate.is_night and climate.temperature < 6
+    from emergent_world.world.physics import fire_near
+    return cold_night and not fire_near(sim.world, agent.x, agent.y)   # a fire keeps you warm
 
 
 def update_boredom(sim, agent) -> None:
@@ -56,7 +62,8 @@ def describe(sim, agent, action) -> str:
         return "sheltering" if sim.world.shelter_near(agent.x, agent.y, 1) else "sleeping"
     name = getattr(action, "name", "")
     labels = {"DRINK": "drinking", "EAT": "eating", "PICK_UP": "picking something up",
-              "DROP": "putting something down", "GIVE": "giving something"}
+              "DROP": "putting something down", "GIVE": "giving something",
+              "STRIKE": "striking something", "RUB": "rubbing something"}
     if name in labels:
         return labels[name]
     if agent.grief:
