@@ -108,10 +108,39 @@ main.py
 tests/
 ```
 
+## Food memory (step 5, in progress)
+
+`agents/memory.py`. Built-in wiring, like real taste aversion: what's learned is *which*
+foods to avoid, keyed only by what they look like.
+
+- Getting sick blames the foods eaten in the previous two days.
+- Foods eaten without getting sick afterwards earn trust (so the safe food eaten the
+  same day as the poison isn't blamed for long).
+- Agents notice what relatives eat nearby; if they see one die of poison, they blame
+  what they saw it eat.
+- Aversion holds back the urge to eat, including random tries. How strongly is an
+  inherited gene (`aversion_gain`). Aversion fades slowly (halves in about 140 days).
+
+Result (seed 0, 1-year lives, 4 simulated years, memory on vs off):
+
+| | Memory on | Memory off |
+|---|---|---|
+| Poison share of meals: naive agents | 13.6% | 9.8% |
+| ... agents who got sick | 7.8% | 10.1% |
+| ... agents who watched a relative die | 7.6% | 10.2% |
+| Share of deaths from poison | 22% | 40% |
+| Births | 4,735 | 3,361 |
+
+Experienced agents eat poison about half as often as naive ones (naive agents look worse
+partly because poison builds up when others avoid it). It's a partial pass: avoidance
+isn't complete.
+
 ## Next steps
 
-- Agents still eat poison at the rate it grows. Nothing has evolved against it, and the
-  instincts deliberately don't cover it.
-
-5. **Learning within a lifetime:** an aversion memory from sickness and from watching
-   relatives die. Done when the poison-plant test passes.
+- **Lives are long on paper only.** With 1-year lifespans, agents still die at about 66
+  days on average, mostly of thirst and hunger from crowding: each agent can have about
+  eight children in a lifetime, so the population fills the world and most die young.
+  Long-lived species need low fertility (two or three children per lifetime) so deaths
+  from scarcity are rarer.
+- Make poison avoidance more complete, and let the memory also steer agents away from
+  foods they're averse to rather than only stopping the final bite.
