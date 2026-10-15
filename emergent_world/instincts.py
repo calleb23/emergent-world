@@ -29,7 +29,7 @@ class _RecordingTeacher:
         self.rng, self.noise = rng, noise
         self.xs, self.ys = [], []
 
-    def choose_actions(self, agents: list, world, config, reach: int | None = None) -> list:
+    def choose_actions(self, agents: list, world, config, reach: int | None = None, lookup=None) -> list:
         inputs = sense_all(agents, world, config, reach)
         labels = [teacher_action(x, self.rng) for x in inputs]
         self.xs.append(inputs)

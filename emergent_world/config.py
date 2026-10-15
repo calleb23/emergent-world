@@ -77,6 +77,16 @@ class Config:
     grief_hours: int = 24 * 4       # how long losing a relative weighs on someone
     grief_rest: float = 1.5         # how much more grieving agents want to sit still
 
+    # Newcomers: strangers who wander in from beyond the edge of the world, bringing
+    # new families to pair with. 0 = nobody ever arrives.
+    newcomer_every_days: float = 30.0
+
+    # Social memory: who people know, and how close they are
+    company_range: int = 3          # tiles: near enough to count as spending time together
+    bond_per_hour: float = 0.004    # bond gained per waking hour spent near someone
+    bond_fade: float = 0.995        # daily multiplier; bonds fade without contact
+    close_bond: float = 0.5         # bond at which two people count as close
+
     # Senses and brain
     policy: str = "brain"           # "brain" or "random" (a baseline to compare against)
     vision_range: int = 8           # tiles each vision ray reaches
@@ -90,6 +100,10 @@ class Config:
     reproduce_cost_energy: float = 40.0
     reproduce_cost_water: float = 20.0
     cooldown_fraction: float = 0.10 # share of average lifespan between children
+    two_parents: bool = True        # False: anyone can have children alone (old behavior)
+    mate_range: int = 8             # tiles: a partner must be within sight
+    mating_pull: float = 2.5        # how strongly adults ready for children are drawn to people in sight
+    father_cost_energy: float = 10.0
     child_energy: float = 60.0
     child_water: float = 60.0
     mutation_scale: float = 0.05    # size of random changes to inherited weights
@@ -101,7 +115,13 @@ class Config:
     aversion_window: int = 48       # ticks: meals this recent get blamed for sickness
     sickness_aversion: float = 0.8  # aversion added to foods blamed for getting sick
     witness_aversion: float = 0.6   # added to foods a relative ate before dying of poison
-    inedible_aversion: float = 0.3  # added each time an agent bites something it can't eat
+    inedible_aversion: float = 0.3  # (unused since things that can't be eaten are simply known as useless)
+    useless_penalty: float = 12.0   # how firmly agents refuse to bite what they know isn't food
+    trust_gain: float = 0.15        # trust gained in a food each time it proves safe
+    parent_trust: float = 0.25      # trust a child gains watching a parent eat a food
+    trust_pull: float = 3.0         # how much trust draws a hungry agent to eat and to approach a food
+    follow_pull: float = 3.0        # how strongly children keep close to their parent
+    homing_pull: float = 2.5        # how strongly agents head back to remembered water or food
     learned_safety: float = 0.3     # share of aversion removed when a food proves safe
     aversion_fade: float = 0.995    # daily multiplier; aversion halves in about 140 days
     aversion_gain: float = 10.0     # starting value of the gene that turns aversion into not eating
@@ -169,7 +189,7 @@ class Config:
         return self
 
     @classmethod
-    def small_world(cls, people: int = 12, max_people: int = 40, children: float = 3.0,
+    def small_world(cls, people: int = 30, max_people: int = 80, children: float = 3.0,
                     years: float = 2.0) -> "Config":
         """The default world for following individual lives: a few founders, long
         lives, about `children` children per lifetime, and top-ups only to

@@ -65,7 +65,7 @@ def test_sleeping_agents_do_not_act():
     agent.asleep, agent.fatigue = True, 0.9
     seen = []
     class Spy:
-        def choose_actions(self, agents, world, config, reach=None):
+        def choose_actions(self, agents, world, config, reach=None, lookup=None):
             seen.append(list(agents))
             return [Action.REST for _ in agents]
     sim.policy = Spy()

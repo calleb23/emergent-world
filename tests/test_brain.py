@@ -70,7 +70,7 @@ def test_mutation_changes_weights_but_not_shape():
 
 
 def test_healthy_adult_reproduces_with_mutated_brain():
-    sim, agent = _empty_world_sim()
+    sim, agent = _empty_world_sim(two_parents=False)
     agent.age = sim.config.maturity_age
     agent.energy = sim.config.max_energy
     agent.water = sim.config.max_water
@@ -83,7 +83,7 @@ def test_healthy_adult_reproduces_with_mutated_brain():
 
 
 def test_thirsty_adult_does_not_reproduce():
-    sim, agent = _empty_world_sim()
+    sim, agent = _empty_world_sim(two_parents=False)
     agent.age = sim.config.maturity_age
     agent.energy = sim.config.max_energy
     agent.water = sim.config.reproduce_water - 1
@@ -116,3 +116,27 @@ def test_batched_senses_match_reference():
     occupied = build_occupancy(sim.world, agents)
     reference = np.stack([sense(a, sim.world, occupied, sim.config) for a in agents])
     assert np.allclose(sense_all(agents, sim.world, sim.config), reference)
+
+
+def test_two_parents_needed_and_close_family_never_pair():
+    sim, mother = _empty_world_sim()
+    mother.sex = "f"
+    mother.age = sim.config.maturity_age
+    mother.energy = mother.water = sim.config.max_energy
+    sim._maybe_reproduce(mother)
+    assert len(sim.agents) == 1                     # nobody to have a child with
+
+    son = sim.spawn_agent(mother.x, mother.y, parent=mother)
+    son.sex, son.age, son.energy = "m", sim.config.maturity_age, sim.config.max_energy
+    mother.reproduce_cooldown = 0
+    sim._maybe_reproduce(mother)
+    assert len(sim.agents) == 2                     # family never pair up
+
+    stranger = sim.spawn_agent(mother.x, mother.y)
+    stranger.sex, stranger.age, stranger.energy = "m", sim.config.maturity_age, sim.config.max_energy
+    sim._maybe_reproduce(mother)
+    child = sim.agents[-1]
+    assert child.parent_id == mother.id and child.other_parent_id == stranger.id
+    assert {mother.id, stranger.id} <= child.kin
+    assert sim.relation(child, stranger) == "parent"
+    assert sim.relation(stranger, child) == "child"

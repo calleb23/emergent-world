@@ -44,7 +44,9 @@ class Agent:
     lifespan: int
     brain: object = None    # a Brain; None when using the random policy
     generation: int = 0
-    parent_id: int = -1     # -1 for agents spawned by the bootstrap
+    parent_id: int = -1     # mother; -1 for agents with no parents (founders, top-ups)
+    other_parent_id: int = -1  # father, when there was one
+    sex: str = "f"          # "f" bears children; "m" fathers them
     lineage: str = ""       # a family tag children inherit, for tracking whose descendants win
     name: str = ""          # given name, for stories (agents never perceive names)
     line: str = ""          # family line, named after the founder it descends from
@@ -58,6 +60,7 @@ class Agent:
     fatigue: float = 0.0    # 0 rested .. 1 exhausted
     fat: float = 0.0        # stored energy for lean times
     grief: int = 0          # hours of grieving left
+    known: dict = field(default_factory=dict)  # id -> bond 0..1: people met, and how close
     asleep: bool = False
     children: int = 0
     reproduce_cooldown: int = 0

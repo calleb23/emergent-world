@@ -75,7 +75,7 @@ class Simulation:
         return isinstance(self.policy, BrainPolicy)
 
     def spawn_agent(self, x=None, y=None, brain=None, parent: Agent | None = None,
-                    energy=None, water=None) -> Agent:
+                    energy=None, water=None, father: Agent | None = None) -> Agent:
         c = self.config
         if x is None:
             x, y = self.world.random_walkable_tile()
@@ -94,28 +94,36 @@ class Simulation:
             parent_id=parent.id if parent else -1,
             lineage=parent.lineage if parent else "",
             name=make_name(self.rng),
-            aversion_gain=self._inherit_gain(parent),
+            sex="f" if self.rng.random() < 0.5 else "m",
+            other_parent_id=father.id if father is not None else -1,
+            aversion_gain=self._inherit_gain(parent, father),
         )
         agent.line = parent.line if parent is not None else agent.name
         self._next_id += 1
         self.agents.append(agent)
         self.by_id[agent.id] = agent
         if parent is not None:
-            # Family ties: the child knows its parent and siblings, and they know it.
-            for sibling_id in parent.offspring:
-                sibling = self.by_id.get(sibling_id)
-                if sibling is not None:
-                    sibling.kin.add(agent.id)
-                    agent.kin.add(sibling_id)
-            parent.offspring.append(agent.id)
-            parent.kin.add(agent.id)
-            agent.kin.add(parent.id)
-            self.log(agent, f"Born to {label(parent)}, of the {agent.line} line")
+            # Family ties: the child knows its parents and siblings, and they know it.
+            for p in [parent] + ([father] if father is not None else []):
+                for sibling_id in p.offspring:
+                    sibling = self.by_id.get(sibling_id)
+                    if sibling is not None and sibling_id != agent.id:
+                        sibling.kin.add(agent.id)
+                        agent.kin.add(sibling_id)
+                p.offspring.append(agent.id)
+                p.kin.add(agent.id)
+                agent.kin.add(p.id)
+            parents = label(parent) + (f" and {label(father)}" if father is not None else "")
+            self.log(agent, f"Born to {parents}, of the {agent.line} line")
             if agent.generation > self._deepest_generation and agent.generation % 5 == 0:
                 self._deepest_generation = agent.generation
                 self.chronicle(f"The {agent.line} line reached its {agent.generation}th generation "
                                f"with the birth of {label(agent)}")
-            self.log(parent, f"Had a child, {label(agent)}")
+            if father is not None:
+                self.log(parent, f"Had a child with {father.name}: {label(agent)}")
+                self.log(father, f"Had a child with {parent.name}: {label(agent)}")
+            else:
+                self.log(parent, f"Had a child, {label(agent)}")
         else:
             self.log(agent, f"Arrived in the world, founding the {agent.line} line")
         return agent
@@ -141,9 +149,9 @@ class Simulation:
 
     def relation(self, agent: Agent, other: Agent) -> str:
         """What `other` is to `agent`: parent, child or sibling."""
-        if other.id == agent.parent_id:
+        if other.id in (agent.parent_id, agent.other_parent_id):
             return "parent"
-        if other.parent_id == agent.id:
+        if agent.id in (other.parent_id, other.other_parent_id):
             return "child"
         return "sibling"
 
@@ -164,11 +172,12 @@ class Simulation:
                              else f"no relation to {dead.name}")
                           + f"), aged {nxt.age // 24} days")
 
-    def _inherit_gain(self, parent: Agent | None) -> float:
+    def _inherit_gain(self, parent: Agent | None, father: Agent | None = None) -> float:
         c = self.config
         if parent is None:
             return c.aversion_gain
-        return max(0.0, parent.aversion_gain + float(self.rng.normal(0, c.aversion_gain_mutation)))
+        base = parent.aversion_gain if father is None else (parent.aversion_gain + father.aversion_gain) / 2
+        return max(0.0, base + float(self.rng.normal(0, c.aversion_gain_mutation)))
 
     def plant_color(self, plant: int):
         """What an item looks like. Memory is keyed by appearance, never by type."""
@@ -227,7 +236,7 @@ class Simulation:
             occupied[a.x, a.y] = True
         self.world.move_critters(occupied, self.climate.growth if self.climate is not None else 1.0)
         awake = [a for a in living if not a.asleep]
-        actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach)
+        actions = self.policy.choose_actions(awake, self.world, self.config, self.vision_reach, self.by_id)
         for agent, action in zip(awake, actions):
             self._act(agent, action)
         for agent in living:
@@ -238,6 +247,7 @@ class Simulation:
         self.agents = [a for a in self.agents if a.alive]
         self.by_id = {a.id: a for a in self.agents}
         self._update_memories()
+        self._newcomers()
         self._chronicle_tick()
         if self.uses_brains:
             self._bootstrap()
@@ -264,6 +274,7 @@ class Simulation:
                 if "water" in agent.out_of:
                     self.log(agent, "Found water just in time")
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
+                agent.memory.water_at = (agent.x, agent.y)
 
     def _eat(self, agent: Agent):
         """Try to eat whatever loose item is underfoot. Instinct tries anything solid."""
@@ -273,12 +284,16 @@ class Simulation:
             return
         color, look = kind.color, kind.look
         if not kind.edible:
-            # A rock or stick: nothing happens, and it stays where it is. Biting
-            # it again feels pointless, so it becomes mildly unappealing.
+            # A rock or stick: nothing happens, and it stays where it is. Now they
+            # know it isn't food, and so does any relative who saw.
             if ("bit", color) not in agent.firsts:
                 agent.firsts.add(("bit", color))
-                self.log(agent, f"Tried to eat a {look}; nothing happened")
-            agent.memory.bit_inedible(color, c.inedible_aversion)
+                self.log(agent, f"Tried to eat a {look}; nothing happened. Not food.")
+            agent.memory.bit_inedible(color)
+            for kin in self.kin_watching(agent):
+                if color not in kin.memory.useless:
+                    kin.memory.saw_kin_bite_inedible(color)
+                    self.log(kin, f"Watched {agent.name} bite a {look} for nothing; learned it isn't food")
             return
         self.world.take_plant(agent.x, agent.y)
         if color not in agent.firsts:
@@ -293,6 +308,13 @@ class Simulation:
         agent.memory.record_meal(self.tick_count, color)
         for kin in self.kin_watching(agent):
             kin.memory.saw_kin_eat(self.tick_count, agent.id, color)
+            if agent.id in (kin.parent_id, kin.other_parent_id):
+                if kin.memory.trusted(color) < 0.2 and ("learned", color) not in kin.firsts:
+                    kin.firsts.add(("learned", color))
+                    self.log(kin, f"Watched {agent.name} eat a {look}; learning it's food")
+                kin.memory.saw_parent_eat(color, c.parent_trust)
+        if agent.memory.level(color) < 0.3:
+            agent.memory.food_at = (agent.x, agent.y)
         agent.energy = min(c.max_energy, agent.energy + kind.energy)
         if kind.harmful:
             agent.sicknesses.append(Sickness(kind.toxin_delay, kind.toxin_hours, kind.toxin))
@@ -417,15 +439,42 @@ class Simulation:
                 or agent.reproduce_cooldown > 0
                 or len(self.agents) >= c.max_population):
             return
+        father = None
+        if c.two_parents:
+            if agent.sex != "f":
+                return
+            father = self._find_partner(agent)
+            if father is None:
+                return
+            father.energy = max(0.0, father.energy - c.father_cost_energy)
+            father.children += 1
         x, y = self._free_neighbor(agent)
         agent.energy -= c.reproduce_cost_energy
         agent.water = max(0.0, agent.water - c.reproduce_cost_water)
         agent.reproduce_cooldown = c.reproduce_cooldown
         agent.children += 1
-        brain = agent.brain.mutated(self.rng, c.mutation_scale, c.mutation_rate) if agent.brain else None
-        child = self.spawn_agent(x, y, brain=brain, parent=agent,
+        source = agent if father is None or self.rng.random() < 0.5 else father
+        brain = source.brain.mutated(self.rng, c.mutation_scale, c.mutation_rate) if source.brain else None
+        child = self.spawn_agent(x, y, brain=brain, parent=agent, father=father,
                                  energy=c.child_energy, water=c.child_water)
         self.stats.record_birth(child)
+
+    def _find_partner(self, mother: Agent) -> Agent | None:
+        """A willing adult male nearby: awake, reasonably fed, and not close family."""
+        c = self.config
+        best, best_score = None, None
+        for other in self.agents:
+            if (other.sex != "m" or not other.alive or other.asleep or other.id in mother.kin
+                    or other.age < c.maturity_age or other.energy < 0.3 * c.max_energy):
+                continue
+            d = max(abs(other.x - mother.x), abs(other.y - mother.y))
+            if d > c.mate_range:
+                continue
+            # Someone she's close to beats someone merely nearby.
+            score = mother.known.get(other.id, 0.0) * 10 - d
+            if best_score is None or score > best_score:
+                best, best_score = other, score
+        return best
 
     def _free_neighbor(self, agent: Agent) -> tuple:
         options = [(agent.x + dx, agent.y + dy) for dx, dy in MOVES.values()
@@ -433,6 +482,26 @@ class Simulation:
         if not options:
             return agent.x, agent.y
         return options[int(self.rng.integers(0, len(options)))]
+
+    def _newcomers(self):
+        """Now and then a stranger arrives at the edge of the world."""
+        c = self.config
+        if (not c.newcomer_every_days or not self.uses_brains or len(self.agents) >= c.max_population
+                or self.rng.random() >= 1.0 / (c.newcomer_every_days * 24)):
+            return
+        edge = int(self.rng.integers(0, 4))
+        for _ in range(50):
+            along = int(self.rng.integers(0, self.world.width))
+            x, y = [(along, 0), (along, self.world.height - 1), (0, along), (self.world.width - 1, along)][edge]
+            if self.world.is_walkable(x, y):
+                break
+        else:
+            return
+        agent = self.spawn_agent(x, y)
+        agent.age = int(c.maturity_age + self.rng.integers(0, max(1, agent.lifespan // 3)))
+        agent.events[-1] = (self.tick_count, f"Wandered in from beyond the edge of the world, "
+                                             f"founding the {agent.line} line")
+        self.chronicle(f"{label(agent)}, a stranger, wandered in from beyond the edge of the world")
 
     def _bootstrap(self):
         """Top up the population while evolution gets going."""
@@ -450,10 +519,34 @@ class Simulation:
             self.spawn_agent(brain=brain)
             self.stats.reseeded += 1
 
+    def _update_bonds(self):
+        """People near each other while awake get to know each other."""
+        c = self.config
+        awake = [a for a in self.agents if a.alive and not a.asleep]
+        for i, a in enumerate(awake):
+            for b in awake[i + 1:]:
+                if max(abs(a.x - b.x), abs(a.y - b.y)) > c.company_range:
+                    continue
+                for me, other in ((a, b), (b, a)):
+                    before = me.known.get(other.id)
+                    now = min(1.0, (before or 0.0) + c.bond_per_hour)
+                    me.known[other.id] = now
+                    if before is None and other.id not in me.kin:
+                        self.log(me, f"Met {label(other)} for the first time")
+                    if (before or 0) < c.close_bond <= now:
+                        self.log(me, f"Became close to {other.name}")
+        if self.tick_count % 24 == 0:
+            for a in self.agents:
+                for other_id in list(a.known):
+                    a.known[other_id] *= c.bond_fade
+                    if a.known[other_id] < 0.005:
+                        del a.known[other_id]
+
     def _update_memories(self):
         c = self.config
+        self._update_bonds()
         for agent in self.agents:
-            agent.memory.settle_meals(self.tick_count, c.aversion_window, c.learned_safety)
+            agent.memory.settle_meals(self.tick_count, c.aversion_window, c.learned_safety, c.trust_gain)
             if self.tick_count % 24 == 0:
                 agent.memory.forget(self.tick_count, c.aversion_window, c.aversion_fade)
 
@@ -475,6 +568,11 @@ class Simulation:
         for kin in self.kin_hearing(agent):
             self.log(kin, f"Heard their {self.relation(kin, agent)} {label(agent)} cry out, far off, and fall silent")
             self._grieve(kin, agent)
+        for friend in self.agents:
+            if (friend.alive and friend.id not in agent.kin
+                    and friend.known.get(agent.id, 0) >= self.config.close_bond):
+                self.log(friend, f"Lost {agent.name}, who they were close to")
+                self._grieve(friend, agent)
         if agent.id == self.followed_id:
             self._pick_next_followed(agent)
         self._chronicle_death(agent, cause)
@@ -485,7 +583,9 @@ class Simulation:
 
     def _grieve(self, mourner: Agent, lost: Agent):
         """Losing close family weighs on someone for days: they want to sit still."""
-        close = lost.id == mourner.parent_id or lost.parent_id == mourner.id
+        close = (lost.id in (mourner.parent_id, mourner.other_parent_id)
+                 or mourner.id in (lost.parent_id, lost.other_parent_id)
+                 or mourner.known.get(lost.id, 0) >= self.config.close_bond)
         mourner.grief = max(mourner.grief, self.config.grief_hours * (2 if close else 1))
         if close:
             self.log(mourner, f"Grieving for {lost.name}")

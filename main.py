@@ -20,8 +20,8 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="random seed; same seed = same run")
     parser.add_argument("--years", type=float, default=2.0, help="average lifespan in years")
     parser.add_argument("--run-years", type=float, default=10.0, help="how many years to simulate")
-    parser.add_argument("--people", type=int, default=12, help="how many founders start the world")
-    parser.add_argument("--max-people", type=int, default=40, help="population cap")
+    parser.add_argument("--people", type=int, default=30, help="how many founders start the world")
+    parser.add_argument("--max-people", type=int, default=80, help="population cap")
     parser.add_argument("--children", type=float, default=3.0,
                         help="roughly how many children an agent can have in a lifetime")
     parser.add_argument("--story", action="store_true",
