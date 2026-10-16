@@ -5,7 +5,13 @@ import numpy as np
 from emergent_world.agents import genes
 from emergent_world.agents.agent import Action
 from emergent_world.agents.brain import OUTPUT_SIZE, imitate, learn, think
-from emergent_world.agents.senses import AGENT_COLOR, RAY_DIRECTIONS, RAY_SIZE, TOUCH_LIQUID, sense_all
+from emergent_world.agents.senses import (AGENT_COLOR, AT_SHELTER, EXPOSED, LIGHT, RAY_DIRECTIONS, RAY_SIZE,
+                                          TOUCH_LIQUID, sense_all)
+
+
+def is_building_wood(kind) -> bool:
+    """Sticks, and light pieces of wood like branches and poles: what piles are made of."""
+    return kind.look == "stick" or (kind.group == "wood" and 1.0 <= kind.mass <= 2.0 and not kind.immovable)
 
 
 MOVE_ACTIONS = (Action.NORTH, Action.SOUTH, Action.EAST, Action.WEST, Action.REST)
@@ -59,6 +65,11 @@ class BrainPolicy:
         penalties[:, :4] -= trust_steer
         penalties[:, :4] -= self.place_pull(agents, inputs, config, lookup or {})
         penalties += self.social_penalty(agents, lookup or {}, config)
+        penalties[:, :4] -= self.shelter_pull(agents, inputs, config)
+        pick, drop, steer = self.build_urge(agents, world, config)
+        penalties[:, Action.PICK_UP] -= pick
+        penalties[:, Action.DROP] -= drop
+        penalties[:, :4] -= steer
         details = {}
         actions = think([a.brain for a in agents], inputs, self.rng,
                         config.action_selection,
@@ -248,6 +259,70 @@ class BrainPolicy:
                         for m in cls._toward(tx - agent.x, ty - agent.y):
                             pull[i, m] += config.homing_pull * food_need
         return pull
+
+    @classmethod
+    def shelter_pull(cls, agents: list, inputs: np.ndarray, config) -> np.ndarray:
+        """Out in the cold and wet, people head for a shelter they know (sleepy ones at
+        night too). Being out in the weather already feels bad; this is the knowing
+        where to go."""
+        pull = np.zeros((len(agents), 4), dtype=np.float32)
+        if not config.shelter_pull:
+            return pull
+        for i, agent in enumerate(agents):
+            spot = agent.memory.shelter_at
+            if spot is None or inputs[i, AT_SHELTER] > 0:
+                continue
+            exposed = inputs[i, EXPOSED] > 0
+            sleepy = inputs[i, LIGHT] < 0.5 and agent.fatigue >= config.sleep_threshold - 0.15
+            strength = 1.0 if exposed else 0.5 if sleepy else 0.0
+            if strength:
+                for m in cls._toward(spot[0] - agent.x, spot[1] - agent.y):
+                    pull[i, m] += config.shelter_pull * strength
+        return pull
+
+    @classmethod
+    def build_urge(cls, agents: list, world, config) -> tuple:
+        """Someone who knows what a shelter is and has suffered the cold lately wants
+        one: they pick up wood, carry it to a stick pile (or beside a shelter they
+        know), and put it down there."""
+        n = len(agents)
+        pick = np.zeros(n, dtype=np.float32)
+        drop = np.zeros(n, dtype=np.float32)
+        steer = np.zeros((n, 4), dtype=np.float32)
+        if not config.build_urge:
+            return pick, drop, steer
+        for i, agent in enumerate(agents):
+            if agent.memory.shelter_at is None or agent.cold_memory < 0.2 or agent.age < config.maturity_age:
+                continue
+            want = config.build_urge * agent.cold_memory
+            x, y = agent.x, agent.y
+            held = config.item(agent.hands)
+            if held is None:
+                under = config.item(int(world.plants[x, y]))
+                if under is not None and is_building_wood(under):
+                    pick[i] = want
+                continue
+            if not is_building_wood(held):
+                continue
+            sx, sy = agent.memory.shelter_at
+            on_pile = world.piles[x, y] > 0 and not world.shelter[x, y]
+            beside_shelter = 1 <= max(abs(sx - x), abs(sy - y)) <= 2 and not world.shelter[x, y]
+            if on_pile or beside_shelter:
+                drop[i] = want
+                continue
+            # Carry it toward the nearest pile in sight, or else back to the shelter.
+            r = 6
+            x0, y0 = max(0, x - r), max(0, y - r)
+            window = (world.piles[x0:x + r + 1, y0:y + r + 1] > 0) & ~world.shelter[x0:x + r + 1, y0:y + r + 1]
+            found = np.argwhere(window)
+            if len(found):
+                d = np.abs(found - [x - x0, y - y0]).max(1)
+                tx, ty = found[int(d.argmin())] + [x0, y0]
+            else:
+                tx, ty = sx, sy
+            for m in cls._toward(int(tx) - x, int(ty) - y):
+                steer[i, m] += want * 0.7
+        return pick, drop, steer
 
     @staticmethod
     def _guardian(child, lookup: dict, config):

@@ -243,8 +243,8 @@ class Simulation:
         return max(2, round(self.config.vision_range * self.climate.visibility))
 
     def tick(self):
-        for a in self.agents:   # last hour's calls reach the ears now
-            a.heard, a.heard_next = a.heard_next, None
+        for a in self.agents:   # calls heard lately: where they came from, relative to here now
+            a.heard = self._heard(a)
         if self.climate is not None:
             self.climate.tick()
         self.world.tick(self.climate.growth if self.climate is not None else 1.0)
@@ -323,6 +323,7 @@ class Simulation:
             if before != after:
                 self.counts["effect_" + action.name.lower()] += 1
                 self._copied_success(agent, action)
+                self._teach(agent, action)
         elif action == Action.DRINK:
             held = c.item(agent.hands)
             if held is not None and held.water and not self.world.next_to_liquid(agent.x, agent.y):
@@ -453,10 +454,64 @@ class Simulation:
             if d > reach:
                 continue
             loud = 1.0 - d / (reach + 1)
-            if other.heard_next is None or loud > other.heard_next[2]:
-                other.heard_next = (dx / reach, dy / reach, loud, alarm, sound)
+            if loud >= self._call_loudness(other):
+                # Remembered as a place and a sound, fading over the next few hours.
+                other.call_mem = [agent.x, agent.y, sound, alarm, self.config.call_memory_hours, loud]
         self.counts["call"] += 1
         self._first(agent, ("called",), "Called out")
+
+    def _call_loudness(self, agent: Agent) -> float:
+        """How loud the remembered call still is (fading as the hours pass)."""
+        mem = agent.call_mem
+        if mem is None or mem[4] <= 0:
+            return 0.0
+        return mem[5] * mem[4] / self.config.call_memory_hours
+
+    def _heard(self, agent: Agent):
+        """The remembered call as the senses get it: direction from here to where it
+        came from, how loud it still is, the fear in it, and which sound it was."""
+        mem = agent.call_mem
+        if mem is None or mem[4] <= 0:
+            agent.call_mem = None
+            return None
+        if max(abs(mem[0] - agent.x), abs(mem[1] - agent.y)) <= 1:
+            self.counts["call_answered"] += 1   # they came to where the call was
+            agent.call_mem = None
+            return None
+        reach = self.config.hearing_range
+        loud = self._call_loudness(agent)
+        mem[4] -= 1
+        dx = max(-1.0, min(1.0, (mem[0] - agent.x) / reach))
+        dy = max(-1.0, min(1.0, (mem[1] - agent.y) / reach))
+        return (dx, dy, loud, mem[3], mem[2])
+
+    def _teach(self, teacher: Agent, action):
+        """A grown-up who does something that works, with younger family watching,
+        shows them how: each watcher puts themselves in the teacher's place and leans
+        hard toward doing the same, whether or not it paid off this time. Showing
+        family something feels good to the teacher."""
+        c = self.config
+        if not c.teaching or teacher.age < c.maturity_age or teacher.last_seen is None:
+            return
+        from emergent_world.agents.brain import imitate
+        shown = []
+        for kin_id in teacher.kin:
+            pupil = self.by_id.get(kin_id)
+            if (pupil is None or not pupil.alive or pupil.asleep or pupil.age >= teacher.age
+                    or max(abs(pupil.x - teacher.x), abs(pupil.y - teacher.y)) > c.vision_range):
+                continue
+            imitate(pupil.brain, teacher.last_seen, int(action), c.teaching_rate)
+            pupil.copied[action] = (teacher.id, pupil.age)
+            shown.append(pupil)
+        if not shown:
+            return
+        teacher.reward += c.teach_reward
+        self.counts["taught"] += 1
+        verb = {Action.STRIKE: "strike things", Action.RUB: "rub things together", Action.DROP: "put things down",
+                Action.PICK_UP: "pick things up", Action.GIVE: "give things"}[action]
+        names = ", ".join(p.name for p in shown[:3])
+        self._first(teacher, ("taught", action), f"Showed {names} how to {verb}")
+        self.chronicle(f"{label(teacher)} showed {names} how to {verb}: the first teaching", once=("taught", int(action)))
 
     def _copied_success(self, agent: Agent, action):
         """They did something that worked, having lately watched someone else do it."""
@@ -518,9 +573,8 @@ class Simulation:
             self._first(agent, ("stoked",), f"Fed a {held.look} to a fire; it flared up")
             self.chronicle(f"{label(agent)} fed a fire to keep it going", once="stoked")
             return
-        building = held.look == "stick" or (held.group == "wood" and 1.0 <= held.mass <= 2.0
-                                            and not held.immovable)   # branches and poles pile up too
-        if building and self.world.terrain[x, y] == 0:
+        from emergent_world.agents.policy import is_building_wood
+        if is_building_wood(held) and self.world.terrain[x, y] == 0:
             agent.hands = 0
             if self.world.add_to_shelter(x, y, self.config.sticks_per_shelter):
                 self.log(agent, "Dropped a stick on the pile, and it became a shelter")
@@ -653,6 +707,7 @@ class Simulation:
             agent.memory.burned(underfoot.color, 0.3)
             self._first(agent, ("pricked", underfoot.look), f"Walked into a {underfoot.look}; it scratched")
         out_in_it = behaviour.exposed(self, agent)
+        agent.cold_memory = min(1.0, agent.cold_memory + 0.1) if out_in_it else agent.cold_memory * 0.995
         if out_in_it:
             hunger *= c.exposure_hunger
             agent.take_damage(c.exposure_damage, "exposure")

@@ -117,13 +117,19 @@ class Config:
     lonely_weight: float = 0.2
     loneliness_rate: float = 0.006  # per hour alone, for an average temperament
     lonely_pull: float = 1.0        # lonely people are drawn toward people they can see
+    shelter_pull: float = 3.0       # out in the weather (or sleepy at night), drawn to a known shelter
+    build_urge: float = 3.0         # people who know shelters and have suffered the cold gather wood and pile it
     thirst_urge: float = 5.0        # beside water, urge to drink, at its strongest when parched (0 = off)
     hunger_urge: float = 5.0        # urge to bite what's underfoot, at its strongest when starving (0 = off)
     hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
+    call_memory_hours: int = 6      # how long a call stays in mind (where it came from, which sound)
     call_carries_fear: bool = True  # a cry's tone gives away the caller's fear
     harm_aversion: float = 2.5      # innate reluctance to hit or rob, stronger toward the loved
     touch_reward: float = 0.4       # being comforted feels good, and so does comforting
     gift_reward: float = 0.3        # being given something feels good
+    teaching: bool = True           # grown-ups show younger family what works, and where things are
+    teaching_rate: float = 0.01     # how strongly being shown something shifts the pupil's brain
+    teach_reward: float = 0.1       # showing family something feels good
     imitation: bool = True          # people learn by watching each other (agents/policy.py)
     imitation_rate: float = 0.003   # how strongly one sighting shifts the onlooker's brain
     imitation_payoff: float = 5.0   # how much a visible payoff (or hurt) scales the lesson

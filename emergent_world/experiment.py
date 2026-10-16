@@ -167,7 +167,8 @@ HEADLINE = ("alive_mean", "alive_end", "alive_last_year", "floor_share", "net_gr
             "action_entropy_bits", "share_doing", "skill_effects", "established_made",
             "new_established_late", "cv_food", "cv_critter", "species_lost",
             "gene_learn_rate_logratio", "gene_imitation_rate_logratio", "gene_exploration_logratio",
-            "calls", "signal_mi_excess", "signal_meaningful", "approach_after_call")
+            "calls", "signal_mi_excess", "signal_meaningful", "approach_after_call", "count_call_answered",
+            "count_taught")
 
 
 def load_summary(path) -> list[dict]:

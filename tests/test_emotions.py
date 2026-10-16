@@ -52,7 +52,7 @@ def test_calls_are_heard_with_direction_and_alarm():
     b.x = a.x + 6
     a.fear = 0.9
     sim._act(a, Action.CALL)
-    dx, dy, loud, alarm, sound = b.heard_next
+    dx, dy, loud, alarm, sound = sim._heard(b)
     assert sound == 0
     assert dx < 0 and loud > 0 and alarm == 0.9
 
@@ -83,8 +83,8 @@ def test_three_distinct_sounds_are_heard_as_such():
     sim, a, b = _pair()
     b.x = a.x + 4
     sim._act(a, Action.CALL_C)
-    assert b.heard_next[4] == 2
-    b.heard, b.heard_next = b.heard_next, None
+    b.heard = sim._heard(b)
+    assert b.heard[4] == 2
     row = emotions.social_inputs(b, [a, b], sim.config)
     assert row[-3:] == [0.0, 0.0, 1.0]
 
@@ -99,3 +99,17 @@ def test_signal_meaning_is_measured_against_chance():
     assert mutual_information(noise) < 0.01
     _, chance95 = shuffled_mi(meaningful, np.random.default_rng(0))
     assert mutual_information(meaningful) > chance95
+
+
+def test_a_call_is_remembered_as_a_place_and_fades():
+    sim, a, b = _pair()
+    b.x = a.x + 6
+    sim._act(a, Action.CALL_B)
+    first = sim._heard(b)
+    b.x = a.x - 3            # walk past where the call came from
+    later = sim._heard(b)
+    assert first[0] < 0 and later[0] > 0     # direction is from where they are now
+    assert later[2] < first[2]               # and it fades
+    for _ in range(sim.config.call_memory_hours):
+        sim._heard(b)
+    assert sim._heard(b) is None

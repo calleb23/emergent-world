@@ -53,10 +53,24 @@ def update_boredom(sim, agent) -> None:
 
 def after_action(sim, agent) -> None:
     """Notice shelters close by, and update boredom."""
-    spot = sim.world.shelter_near(agent.x, agent.y, 1)
+    # Shelters they can see are remembered (nearest first), and so are the ones beside them.
+    spot = sim.world.shelter_near(agent.x, agent.y, 1) or sim.world.shelter_near(agent.x, agent.y, sim.vision_reach)
     if spot is not None:
+        if agent.memory.shelter_at is None:
+            sim._first(agent, ("saw shelter",), "Saw a shelter, and remembered where it was")
         agent.memory.shelter_at = spot
     world = sim.world
+    if sim.config.teaching and agent.age < sim.config.maturity_age:
+        # A child kept close is shown the places its parent knows.
+        for pid in (agent.parent_id, agent.other_parent_id):
+            parent = sim.by_id.get(pid)
+            if parent is None or not parent.alive or max(abs(parent.x - agent.x), abs(parent.y - agent.y)) > 2:
+                continue
+            for place in ("water_at", "food_at", "shelter_at"):
+                if getattr(agent.memory, place) is None and getattr(parent.memory, place) is not None:
+                    setattr(agent.memory, place, getattr(parent.memory, place))
+                    sim._first(agent, ("shown", place), f"{parent.name} showed them where to find "
+                               + {"water_at": "water", "food_at": "food", "shelter_at": "shelter"}[place])
     if sim.config.remember_seen_water and world.shore_distance[agent.x, agent.y] <= sim.vision_reach:
         agent.memory.water_at = tuple(int(v) for v in world.nearest_shore[agent.x, agent.y])
     update_boredom(sim, agent)

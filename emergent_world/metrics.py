@@ -143,7 +143,7 @@ class Recorder:
         for cause in ("dehydration", "starvation", "poison", "old_age", "exposure", "bites", "violence",
                       "thorns", "fire", "stings"):
             out[f"share_{cause}"] = round(causes[cause] / total, 4)
-        for key in ("gift", "comfort", "hit", "theft", "call", "transmission"):
+        for key in ("gift", "comfort", "hit", "theft", "call", "transmission", "taught", "call_answered"):
             out[f"count_{key}"] = int(sim.counts[key])
         for prefix, name in DISCOVERIES.items():
             ticks = [t for k, t in sim.first_ticks.items() if k == prefix or (prefix.endswith("/") and k.startswith(prefix))]
