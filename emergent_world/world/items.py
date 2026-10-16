@@ -73,6 +73,7 @@ class ItemKind:
     seasonal: bool = False       # its drops follow the growing season (fruit in summer, none in winter)
     after_rain: float = 0.0      # chance per hour it springs up on soaked open ground
     warm: bool = False           # held, it keeps off the cold (not the wet)
+    cover: bool = False          # natural shelter: anyone on or beside it is out of the weather
 
     @property
     def harmful(self) -> bool:
@@ -197,7 +198,7 @@ DEFAULT_ITEMS = (
              wilt_chance=0.02, group="egg"),
 
     # --- Pines, vines and saplings --------------------------------------------
-    ItemKind("pine tree", (25, 80, 55), edible=False, spawn_weight=0.4, regrows=False,
+    ItemKind("pine tree", (25, 80, 55), edible=False, spawn_weight=0.4, regrows=False, cover=True,
              wilt_chance=0.00003, rots_into="log", group="tree", immovable=True, hardness=6, mass=50,
              burn_hours=50, ignites_at=7, breaks_into="log", drops=(("pine cone", 0.002),)),
     ItemKind("pine cone", (150, 105, 75), edible=False, spawns=False, regrows=False,
@@ -286,6 +287,11 @@ DEFAULT_ITEMS = (
              grows_into="sapling", grow_days=20),   # the core takes root
     ItemKind("puffball", (245, 245, 235), energy=15, spawns=False, regrows=False, wilt_chance=0.01,
              group="mushroom", after_rain=0.0004, cooks_into="roasted mushroom"),
+
+    # --- Natural shelter --------------------------------------------------------
+    # A rock overhang keeps off rain and cold like a shelter; so does a thick pine.
+    ItemKind("rock overhang", (150, 140, 130), edible=False, spawn_weight=0.25, regrows=False,
+             wilt_chance=0.0, group="stone", immovable=True, hardness=9, mass=500, cover=True),
 )
 
 # What striking one thing with another makes, beyond plain breaking: (held, target) -> result.

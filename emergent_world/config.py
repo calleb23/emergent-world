@@ -124,6 +124,8 @@ class Config:
     hunger_urge: float = 5.0        # urge to bite what's underfoot, at its strongest when starving (0 = off)
     hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
     call_memory_hours: int = 6      # how long a call stays in mind (where it came from, which sound)
+    call_pull: float = 1.5          # hungry, thirsty or lonely listeners go to see what a call was about
+    call_help_reward: float = 0.3   # a caller is glad when someone who came finds food or water
     call_carries_fear: bool = True  # a cry's tone gives away the caller's fear
     harm_aversion: float = 2.5      # innate reluctance to hit or rob, stronger toward the loved
     touch_reward: float = 0.4       # being comforted feels good, and so does comforting

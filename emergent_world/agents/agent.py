@@ -101,7 +101,8 @@ class Agent:
     genes: dict = field(default_factory=dict)    # learning genes: see agents/genes.py
     grudges: dict = field(default_factory=dict)  # id -> 0..1: people who wronged them
     heard: tuple | None = None       # the call they remember, as sensed now: (dx, dy, loudness, alarm, sound)
-    call_mem: list | None = None     # that call: [x, y, sound, alarm, hours left, loudness when heard]
+    call_mem: list | None = None     # that call: [x, y, sound, alarm, hours left, loudness when heard, caller]
+    answered: tuple | None = None    # (caller, when) after reaching a call's spot, for a few hours
     last_attacker: int = -1          # who last hit them
     cold_memory: float = 0.0         # 0..1: how much they've suffered the cold and wet lately
 

@@ -98,6 +98,7 @@ class World:
         # traps a critter stepping onto it becomes.
         self._rot = np.array([0] + [c.item_id(k.rots_into) for k in c.items], dtype=np.int8)
         self._trap = np.array([0] + [c.item_id(k.traps) for k in c.items], dtype=np.int8)
+        self._cover = np.array([False] + [k.cover for k in c.items])   # item id -> gives cover
         self._prey = {i: {c.item_id(look) for look in k.eats} for i, k in enumerate(c.items, start=1) if k.eats}
 
     @staticmethod
@@ -182,10 +183,10 @@ class World:
         return False
 
     def shelter_near(self, x: int, y: int, reach: int):
-        """The nearest finished shelter within `reach` tiles, or None."""
+        """A shelter or natural cover within `reach` tiles, or None."""
         x0, x1 = max(0, x - reach), min(self.width, x + reach + 1)
         y0, y1 = max(0, y - reach), min(self.height, y + reach + 1)
-        window = self.shelter[x0:x1, y0:y1]
+        window = self.shelter[x0:x1, y0:y1] | self._cover[self.plants[x0:x1, y0:y1]]
         if not window.any():
             return None
         found = np.argwhere(window)

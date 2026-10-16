@@ -58,7 +58,7 @@ def agent_rows(sim) -> list:
     return rows
 
 
-SOCIAL_KEYS = ("gift", "comfort", "hit", "theft", "taught", "transmission", "call_answered")
+SOCIAL_KEYS = ("gift", "comfort", "hit", "theft", "taught", "transmission", "call_answered", "call_helped")
 
 
 def counts_row(sim) -> list:

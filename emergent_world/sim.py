@@ -342,6 +342,7 @@ class Simulation:
                 if "water" in agent.out_of:
                     self.log(agent, "Found water just in time")
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
+                self._call_helped(agent, "water")
                 agent.memory.water_at = (agent.x, agent.y)
 
     def _beside(self, agent: Agent):
@@ -456,7 +457,7 @@ class Simulation:
             loud = 1.0 - d / (reach + 1)
             if loud >= self._call_loudness(other):
                 # Remembered as a place and a sound, fading over the next few hours.
-                other.call_mem = [agent.x, agent.y, sound, alarm, self.config.call_memory_hours, loud]
+                other.call_mem = [agent.x, agent.y, sound, alarm, self.config.call_memory_hours, loud, agent.id]
         self.counts["call"] += 1
         self._first(agent, ("called",), "Called out")
 
@@ -476,6 +477,7 @@ class Simulation:
             return None
         if max(abs(mem[0] - agent.x), abs(mem[1] - agent.y)) <= 1:
             self.counts["call_answered"] += 1   # they came to where the call was
+            agent.answered = (mem[6] if len(mem) > 6 else -1, self.tick_count)
             agent.call_mem = None
             return None
         reach = self.config.hearing_range
@@ -484,6 +486,24 @@ class Simulation:
         dx = max(-1.0, min(1.0, (mem[0] - agent.x) / reach))
         dy = max(-1.0, min(1.0, (mem[1] - agent.y) / reach))
         return (dx, dy, loud, mem[3], mem[2])
+
+    def _call_helped(self, agent: Agent, what: str):
+        """Someone who came to a call and found food or water there: the caller is
+        glad of it (more so for family and friends)."""
+        answered = getattr(agent, "answered", None)
+        if not answered or self.tick_count - answered[1] > 3:
+            return
+        agent.answered = None
+        caller = self.by_id.get(answered[0])
+        if caller is None or not caller.alive or caller is agent:
+            return
+        closeness = (1.0 if agent.id in caller.kin else 0.0) + caller.known.get(agent.id, 0.0)
+        caller.reward += self.config.call_help_reward * (1.0 + closeness)
+        caller.joy = min(1.0, caller.joy + 0.1)
+        self.counts["call_helped"] += 1
+        self._first(caller, ("call helped",), f"Called out, and {agent.name} came and found {what}")
+        self.chronicle(f"{label(caller)} called, and {label(agent)} came and found {what}: the first call that helped",
+                       once="call helped")
 
     def _teach(self, teacher: Agent, action):
         """A grown-up who does something that works, with younger family watching,
@@ -665,6 +685,7 @@ class Simulation:
         if not carried and agent.memory.level(color) < 0.3:
             agent.memory.food_at = (agent.x, agent.y)
         agent.energy = min(c.max_energy, agent.energy + kind.energy)
+        self._call_helped(agent, "food")
         if kind.cures and agent.sicknesses:
             agent.sicknesses = []
             self.log(agent, f"Ate a {look} while sick, and the sickness passed")

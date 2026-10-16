@@ -245,6 +245,13 @@ class BrainPolicy:
                 best = max(rays, key=lambda r: inputs[i, r * RAY_SIZE + 3])
                 for m in cls._ray_moves(best):
                     pull[i, m] += config.homing_pull * water_need * 2
+            # Curiosity about a call: needy or lonely listeners go and see what it was about.
+            heard = agent.heard
+            if heard is not None and config.call_pull and heard[3] < 0.5:   # not toward a cry of fear
+                need = max(water_need, 1.0 - agent.energy / config.max_energy, agent.loneliness)
+                if need > 0.5:
+                    for m in cls._toward(round(heard[0] * 10), round(heard[1] * 10)):
+                        pull[i, m] += config.call_pull * need
             if water_need > 0.4 and not water_seen and agent.memory.water_at is not None:
                 tx, ty = agent.memory.water_at
                 for m in cls._toward(tx - agent.x, ty - agent.y):

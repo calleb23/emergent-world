@@ -72,3 +72,33 @@ def test_children_near_a_parent_learn_the_places_it_knows():
     a.memory.water_at = (5, 5)
     behaviour.after_action(sim, child)
     assert child.memory.water_at == (5, 5)
+
+
+def test_a_rock_overhang_keeps_off_the_weather():
+    from emergent_world import behaviour
+    sim, a, b, item = _sim()
+    sim.climate.weather = "rain"
+    assert behaviour.exposed(sim, a)
+    sim.world.plants[a.x + 1, a.y] = item("rock overhang")
+    assert not behaviour.exposed(sim, a)
+
+
+def test_needy_listeners_go_to_see_what_a_call_was_about():
+    sim, a, b, item = _sim()
+    b.x, b.y = a.x + 6, a.y
+    a.energy = 0.2 * sim.config.max_energy
+    sim._act(b, Action.CALL_B)
+    a.heard = sim._heard(a)
+    pull = BrainPolicy.place_pull([a], np.zeros((1, 200), dtype=np.float32), sim.config, sim.by_id)
+    assert pull[0, Action.EAST] > 0
+
+
+def test_a_caller_is_glad_when_someone_who_came_finds_food():
+    sim, a, b, item = _sim()
+    b.x, b.y = a.x + 1, a.y
+    sim._act(a, Action.CALL)
+    b.heard = sim._heard(b)          # within a tile: they've arrived
+    assert b.answered[0] == a.id
+    before = a.reward
+    sim._consume(b, sim.config.item(item("apple")))
+    assert a.reward > before and sim.counts["call_helped"] == 1
