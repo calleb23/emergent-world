@@ -24,7 +24,8 @@ class Simulation:
         # One generator for everything, so a seed replays a run exactly.
         self.rng = np.random.default_rng(seed)
         self.world = World(self.config, self.rng)
-        self.climate = Climate(self.rng) if self.config.climate else None
+        self.climate = (Climate(self.rng, winter_temperature=self.config.winter_temperature,
+                                winter_growth=self.config.winter_growth) if self.config.climate else None)
         self.world.climate = self.climate   # senses read light and weather through the world
         self.biter_ids = [i for i, k in enumerate(self.config.items, start=1) if k.bites]
         self.safe_food_ids = [i for i, k in enumerate(self.config.items, start=1) if k.edible and not k.harmful]

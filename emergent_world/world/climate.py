@@ -46,8 +46,13 @@ SEASON_TRAITS = {
 
 class Climate:
     def __init__(self, rng, ticks_per_day: int = 24, days_per_season: int = 91,
-                 average_weather_hours: float = 10.0):
+                 average_weather_hours: float = 10.0, winter_temperature: float = 2.0,
+                 winter_growth: float = 0.25):
         self.rng = rng
+        # Each season's traits, with winter's cold and growth adjustable.
+        self.traits = dict(SEASON_TRAITS)
+        _, _, odds = SEASON_TRAITS["winter"]
+        self.traits["winter"] = (winter_temperature, winter_growth, odds)
         self.ticks_per_day = ticks_per_day
         self.days_per_season = days_per_season
         self.change_chance = 1.0 / average_weather_hours
@@ -89,13 +94,13 @@ class Climate:
 
     @property
     def temperature(self) -> float:
-        base = SEASON_TRAITS[self.season][0]
+        base = self.traits[self.season][0]
         daily_swing = 5.0 * (self.light - 0.575) / 0.425  # about +5 by day, -5 at night
         return base + daily_swing + self.effect.warmth
 
     @property
     def growth(self) -> float:
-        return SEASON_TRAITS[self.season][1] * self.effect.growth
+        return self.traits[self.season][1] * self.effect.growth
 
     @property
     def visibility(self) -> float:
@@ -115,13 +120,13 @@ class Climate:
         """Advance one hour; the weather sometimes changes."""
         self.tick_count += 1
         if self.rng.random() < self.change_chance:
-            odds = SEASON_TRAITS[self.season][2]
+            odds = self.traits[self.season][2]
             kinds = list(odds)
             weights = [odds[k] for k in kinds]
             total = sum(weights)
             pick = kinds[int(self.rng.choice(len(kinds), p=[w / total for w in weights]))]
             # Precipitation falls as snow when it's cold enough.
-            if pick in ("rain", "storm") and SEASON_TRAITS[self.season][0] + EFFECTS[pick].warmth <= 1:
+            if pick in ("rain", "storm") and self.traits[self.season][0] + EFFECTS[pick].warmth <= 1:
                 pick = "snow"
             self.weather = pick
 

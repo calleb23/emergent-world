@@ -59,6 +59,8 @@ class Config:
     drink_amount: float = 40.0
 
     # Day and night, seasons, weather and sleep (see world/climate.py)
+    winter_temperature: float = 2.0   # winter's base temperature (degrees C); colder burns more energy
+    winter_growth: float = 0.25       # how fast things regrow in winter, relative to normal
     climate: bool = True            # False: endless clear daylight, no sleep (old behavior)
     fatigue_rate: float = 0.05      # tiredness gained per waking hour (exhausted after 20 hours)
     rest_rate: float = 0.12         # tiredness lost per hour asleep (about 8 hours of sleep)
