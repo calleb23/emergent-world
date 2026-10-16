@@ -12,9 +12,11 @@ shelter. The best place weighs how much it mattered, how recently, and how far
 away it is. What's recalled is something the brain can sense (direction and
 strength), and it also steers the built-in pulls toward water, food and shelter.
 
-**Replay**: experiences (what was sensed, what was done, how it felt) are kept
-for a while, and replayed to the brain during sleep, so learning keeps going at
-night, the way the hippocampus is thought to train the rest of the brain.
+**Replay**: experiences that clearly felt good or bad (what was sensed, what was
+done, how it felt) are kept for a while, and replayed to the brain during sleep, so
+learning keeps going at night, the way the hippocampus is thought to train the rest
+of the brain. Replaying every ordinary step instead inflated the value of wandering
+until thirsty people walked away from water.
 """
 
 from collections import deque
@@ -110,23 +112,26 @@ def memory_inputs(agent) -> list:
     return row
 
 
-def replay_step(brain, transition, discount: float, rate: float) -> None:
-    """Relearn one remembered experience (temporal-difference, on the last layer)."""
+def replay_step(brain, transition, discount: float, rate: float, on_policy: bool = False) -> None:
+    """Relearn one remembered experience (temporal-difference, on the last layer).
+    With `on_policy`, what came next is valued by what was actually done next rather
+    than by the best-looking choice."""
     from emergent_world.agents.brain import learn
-    hidden, action, reward, next_hidden = transition
+    hidden, action, reward, next_hidden = transition[:4]
     values = hidden @ brain.w2 + brain.b2
     next_values = next_hidden @ brain.w2 + brain.b2
-    error = reward + discount * float(next_values.max()) - float(values[action])
+    next_value = float(next_values[transition[4]]) if on_policy and len(transition) > 4 else float(next_values.max())
+    error = reward + discount * next_value - float(values[action])
     learn(brain, hidden, action, error, rate)
 
 
-def sleep_replay(agent, rng, discount: float, rate: float, count: int) -> None:
+def sleep_replay(agent, rng, discount: float, rate: float, count: int, on_policy: bool = False) -> None:
     hippo = agent.hippo
     if not hippo.replay or agent.brain is None:
         return
     n = len(hippo.replay)
     for k in rng.integers(0, n, size=min(count, n)):
-        replay_step(agent.brain, hippo.replay[int(k)], discount, rate)
+        replay_step(agent.brain, hippo.replay[int(k)], discount, rate, on_policy)
 
 
 def as_array(x):

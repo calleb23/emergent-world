@@ -800,7 +800,8 @@ class Simulation:
             agent.hippo.encode(self.tick_count, agent.x, agent.y, "danger",
                                min(1.0, (agent.last_health - agent.health) / 20), who=-1)
         if c.sleep_replay and agent.asleep:
-            sleep_replay(agent, self.rng, c.discount, genes.value(agent, c, "learn_rate"), c.replay_per_hour)
+            sleep_replay(agent, self.rng, c.discount, genes.value(agent, c, "learn_rate"), c.replay_per_hour,
+                         c.replay_on_policy)
         if agent.energy > 0 and agent.water > 0 and not agent.sicknesses:
             rest = c.sleep_healing if agent.asleep else 1.0
             frailty = 0.5 if old else 1.0

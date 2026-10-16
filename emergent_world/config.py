@@ -120,7 +120,8 @@ class Config:
     lonely_pull: float = 1.0        # lonely people are drawn toward people they can see
     shelter_pull: float = 3.0       # out in the weather (or sleepy at night), drawn to a known shelter
     build_urge: float = 3.0         # people who know shelters and have suffered the cold gather wood and pile it
-    thirst_urge: float = 5.0        # beside water, urge to drink, at its strongest when parched (0 = off)
+    thirst_urge: float = 15.0       # beside water, urge to drink, at its strongest when parched (0 = off);
+                                    # 5 was outweighed once replay had trained brains to value wandering
     hunger_urge: float = 5.0        # urge to bite what's underfoot, at its strongest when starving (0 = off)
     hit_damage: float = 4.0         # a bare-handed blow; something hard in hand adds to it
     call_memory_hours: int = 6      # how long a call stays in mind (where it came from, which sound)
@@ -134,6 +135,8 @@ class Config:
     hippocampus: bool = True        # False: only the old one-slot place memories
     sleep_replay: bool = True       # experiences are replayed to the brain during sleep
     replay_per_hour: int = 4        # experiences replayed per hour asleep
+    replay_salience: float = 0.0    # only moments that felt at least this good or bad are replayed (0 = all)
+    replay_on_policy: bool = False  # value what came next by what was actually done (else the best-looking)
     emulation: bool = True          # seeing others sheltered while out in the cold makes people want shelter
     teaching: bool = True           # grown-ups show younger family what works, and where things are
     teaching_rate: float = 0.01     # how strongly being shown something shifts the pupil's brain

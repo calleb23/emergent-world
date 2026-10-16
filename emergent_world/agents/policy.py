@@ -98,8 +98,10 @@ class BrainPolicy:
                 prev_hidden, prev_action, prev_value = last
                 error = agent.reward + config.discount * float(values[i].max()) - prev_value
                 learn(agent.brain, prev_hidden, prev_action, error, genes.value(agent, config, "learn_rate"))
-                if config.sleep_replay:   # kept for replaying in sleep
-                    agent.hippo.replay.append((prev_hidden, prev_action, agent.reward, hidden[i].copy()))
+                if config.sleep_replay and abs(agent.reward) >= config.replay_salience:
+                    # Moments that clearly felt good or bad are kept, to be replayed in sleep.
+                    agent.hippo.replay.append((prev_hidden, prev_action, agent.reward, hidden[i].copy(),
+                                               int(actions[i])))
             agent.reward = 0.0
             a = int(actions[i])
             agent.last_choice = (hidden[i].copy(), a, float(values[i, a]))
