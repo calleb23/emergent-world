@@ -36,6 +36,46 @@ def exposed(sim, agent) -> bool:
     return cold_night and not fire_near(sim.world, agent.x, agent.y)   # a fire keeps you warm
 
 
+def bad_weather(sim, agent) -> bool:
+    """Rain, storm, snow or a cold night: weather worth sheltering from."""
+    climate = sim.climate
+    if climate is None:
+        return False
+    return climate.weather in ("rain", "storm", "snow") or (climate.is_night and climate.temperature < 6)
+
+
+def remember_weather(sim, agent, out_in_it: bool) -> None:
+    """Being snug in shelter in bad weather is worth remembering. So is seeing
+    someone else snug while you're out in it: you want what they have."""
+    if not bad_weather(sim, agent):
+        return
+    world, now = sim.world, sim.tick_count
+    if not out_in_it:
+        spot = world.shelter_near(agent.x, agent.y, 1)
+        if spot is not None:
+            agent.hippo.encode(now, spot[0], spot[1], "shelter", 0.7)
+        return
+    if not sim.config.emulation or agent.asleep:
+        return
+    reach = sim.vision_reach
+    for other in sim.agents:
+        if other is agent or not other.alive or max(abs(other.x - agent.x), abs(other.y - agent.y)) > reach:
+            continue
+        spot = world.shelter_near(other.x, other.y, 1)
+        if spot is not None:
+            agent.hippo.encode(now, spot[0], spot[1], "shelter", 1.0, who=other.id)
+            agent.shelter_want = min(1.0, agent.shelter_want + 0.2)
+            sim._first(agent, ("envied shelter",), f"Out in the weather, saw {other.name} snug under cover, and wanted that")
+            sim.chronicle(f"{label_of(agent)}, out in the weather, saw {other.name} sheltering and wanted that",
+                          once="envied shelter")
+            break
+
+
+def label_of(agent) -> str:
+    from emergent_world.agents.names import label
+    return label(agent)
+
+
 def update_boredom(sim, agent) -> None:
     """Lingering in a small patch builds boredom; covering new ground eases it."""
     c = sim.config
@@ -60,6 +100,16 @@ def after_action(sim, agent) -> None:
             sim._first(agent, ("saw shelter",), "Saw a shelter, and remembered where it was")
         agent.memory.shelter_at = spot
     world = sim.world
+    if spot is not None and sim.config.hippocampus:
+        agent.hippo.encode(sim.tick_count, spot[0], spot[1], "shelter", 0.4)
+    if sim.config.hippocampus and (sim.tick_count + agent.id) % 4 == 0:
+        # Recall, cued by need: the best remembered water, food and shelter from here.
+        agent.hippo_now = sim.tick_count
+        agent.hippo.refresh(agent.x, agent.y, sim.tick_count)
+        for need, slot in (("water", "water_at"), ("food", "food_at"), ("shelter", "shelter_at")):
+            found = agent.hippo.recalled.get(need)
+            if found is not None:
+                setattr(agent.memory, slot, (found[0], found[1]))
     if sim.config.teaching and agent.age < sim.config.maturity_age:
         # A child kept close is shown the places its parent knows.
         for pid in (agent.parent_id, agent.other_parent_id):
@@ -71,8 +121,18 @@ def after_action(sim, agent) -> None:
                     setattr(agent.memory, place, getattr(parent.memory, place))
                     sim._first(agent, ("shown", place), f"{parent.name} showed them where to find "
                                + {"water_at": "water", "food_at": "food", "shelter_at": "shelter"}[place])
+            if sim.config.hippocampus and (sim.tick_count + agent.id) % 24 == 0:
+                now = sim.tick_count
+                for kind in ("water", "food", "shelter"):
+                    if not any(e.kind == kind for e in agent.hippo.episodes):
+                        for e in parent.hippo.best(kind, now, 2):
+                            agent.hippo.encode(now, e.x, e.y, kind, 0.8 * parent.hippo.strength(e, now),
+                                               who=parent.id)
     if sim.config.remember_seen_water and world.shore_distance[agent.x, agent.y] <= sim.vision_reach:
         agent.memory.water_at = tuple(int(v) for v in world.nearest_shore[agent.x, agent.y])
+        if sim.config.hippocampus:
+            sx, sy = agent.memory.water_at
+            agent.hippo.encode(sim.tick_count, sx, sy, "water", 0.5)
     update_boredom(sim, agent)
 
 

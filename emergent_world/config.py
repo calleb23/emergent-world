@@ -130,6 +130,11 @@ class Config:
     harm_aversion: float = 2.5      # innate reluctance to hit or rob, stronger toward the loved
     touch_reward: float = 0.4       # being comforted feels good, and so does comforting
     gift_reward: float = 0.3        # being given something feels good
+    # Hippocampus (agents/hippocampus.py): episodes of what happened where, recalled by need.
+    hippocampus: bool = True        # False: only the old one-slot place memories
+    sleep_replay: bool = True       # experiences are replayed to the brain during sleep
+    replay_per_hour: int = 4        # experiences replayed per hour asleep
+    emulation: bool = True          # seeing others sheltered while out in the cold makes people want shelter
     teaching: bool = True           # grown-ups show younger family what works, and where things are
     teaching_rate: float = 0.01     # how strongly being shown something shifts the pupil's brain
     teach_reward: float = 0.1       # showing family something feels good

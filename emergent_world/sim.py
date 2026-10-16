@@ -8,6 +8,9 @@ from emergent_world.agents.agent import MOVES, Action, Agent, Sickness
 from emergent_world.agents.brain import Brain
 from emergent_world import behaviour
 from emergent_world.agents import emotions, genes
+from emergent_world.agents.hippocampus import sleep_replay
+
+DANGERS = ("bites", "fire", "stings", "thorns", "violence")
 from emergent_world.agents.names import label, make_name
 from emergent_world.agents.policy import BrainPolicy, RandomPolicy
 from emergent_world.config import Config
@@ -341,9 +344,24 @@ class Simulation:
                     self.log(agent, "Drank water for the first time")
                 if "water" in agent.out_of:
                     self.log(agent, "Found water just in time")
+                thirst = 1.0 - agent.water / c.max_water
                 agent.water = min(c.max_water, agent.water + c.drink_amount)
                 self._call_helped(agent, "water")
                 agent.memory.water_at = (agent.x, agent.y)
+                if c.hippocampus:
+                    agent.hippo.encode(self.tick_count, agent.x, agent.y, "water", 0.3 + thirst)
+
+    def _witness_building(self, builder: Agent, x: int, y: int):
+        """Piling wood is remembered, by the builder and by anyone who sees it: a place
+        to help build."""
+        c = self.config
+        if not c.hippocampus:
+            return
+        for other in self.agents:
+            if other.alive and not other.asleep and max(abs(other.x - x), abs(other.y - y)) <= c.vision_range:
+                other.hippo.encode(self.tick_count, x, y, "build", 0.6, who=builder.id)
+                if other is not builder:
+                    self._first(other, ("saw building",), f"Watched {builder.name} piling wood")
 
     def _beside(self, agent: Agent):
         """The person right next to this one (the closest, if several), or None."""
@@ -596,6 +614,7 @@ class Simulation:
         from emergent_world.agents.policy import is_building_wood
         if is_building_wood(held) and self.world.terrain[x, y] == 0:
             agent.hands = 0
+            self._witness_building(agent, x, y)
             if self.world.add_to_shelter(x, y, self.config.sticks_per_shelter):
                 self.log(agent, "Dropped a stick on the pile, and it became a shelter")
                 self.chronicle(f"{label(agent)} made the first shelter, from a pile of sticks", once="shelter")
@@ -684,6 +703,8 @@ class Simulation:
                 kin.memory.saw_parent_eat(color, c.parent_trust)
         if not carried and agent.memory.level(color) < 0.3:
             agent.memory.food_at = (agent.x, agent.y)
+            if c.hippocampus and not kind.harmful:
+                agent.hippo.encode(self.tick_count, agent.x, agent.y, "food", min(1.0, kind.energy / 40))
         agent.energy = min(c.max_energy, agent.energy + kind.energy)
         self._call_helped(agent, "food")
         if kind.cures and agent.sicknesses:
@@ -729,6 +750,9 @@ class Simulation:
             self._first(agent, ("pricked", underfoot.look), f"Walked into a {underfoot.look}; it scratched")
         out_in_it = behaviour.exposed(self, agent)
         agent.cold_memory = min(1.0, agent.cold_memory + 0.1) if out_in_it else agent.cold_memory * 0.995
+        agent.shelter_want *= 0.997
+        if c.hippocampus:
+            behaviour.remember_weather(self, agent, out_in_it)
         if out_in_it:
             hunger *= c.exposure_hunger
             agent.take_damage(c.exposure_damage, "exposure")
@@ -772,6 +796,11 @@ class Simulation:
                 sickness.duration -= 1
         agent.sicknesses = [s for s in agent.sicknesses if s.duration > 0]
 
+        if c.hippocampus and agent.health < agent.last_health and agent.last_damage in DANGERS:
+            agent.hippo.encode(self.tick_count, agent.x, agent.y, "danger",
+                               min(1.0, (agent.last_health - agent.health) / 20), who=-1)
+        if c.sleep_replay and agent.asleep:
+            sleep_replay(agent, self.rng, c.discount, genes.value(agent, c, "learn_rate"), c.replay_per_hour)
         if agent.energy > 0 and agent.water > 0 and not agent.sicknesses:
             rest = c.sleep_healing if agent.asleep else 1.0
             frailty = 0.5 if old else 1.0
@@ -983,6 +1012,7 @@ class Simulation:
             agent.memory.settle_meals(self.tick_count, c.aversion_window, c.learned_safety, c.trust_gain)
             if self.tick_count % 24 == 0:
                 agent.memory.forget(self.tick_count, c.aversion_window, c.aversion_fade)
+                agent.hippo.forget(self.tick_count)
 
     def _kill(self, agent: Agent, cause: str):
         agent.alive = False

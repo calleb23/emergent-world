@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from enum import IntEnum
 
+from emergent_world.agents.hippocampus import Hippocampus
 from emergent_world.agents.memory import FoodMemory
 
 
@@ -105,6 +106,9 @@ class Agent:
     answered: tuple | None = None    # (caller, when) after reaching a call's spot, for a few hours
     last_attacker: int = -1          # who last hit them
     cold_memory: float = 0.0         # 0..1: how much they've suffered the cold and wet lately
+    shelter_want: float = 0.0        # 0..1: wanting a shelter, after seeing others snug in one
+    hippo: Hippocampus = field(default_factory=Hippocampus)   # episodes, recall and replay
+    hippo_now: int = 0               # the hour, as of the last recall (for recall elsewhere)
 
     def take_damage(self, amount: float, source: str):
         self.health -= amount

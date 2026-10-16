@@ -98,6 +98,8 @@ class BrainPolicy:
                 prev_hidden, prev_action, prev_value = last
                 error = agent.reward + config.discount * float(values[i].max()) - prev_value
                 learn(agent.brain, prev_hidden, prev_action, error, genes.value(agent, config, "learn_rate"))
+                if config.sleep_replay:   # kept for replaying in sleep
+                    agent.hippo.replay.append((prev_hidden, prev_action, agent.reward, hidden[i].copy()))
             agent.reward = 0.0
             a = int(actions[i])
             agent.last_choice = (hidden[i].copy(), a, float(values[i, a]))
@@ -247,8 +249,9 @@ class BrainPolicy:
                     pull[i, m] += config.homing_pull * water_need * 2
             # Curiosity about a call: needy or lonely listeners go and see what it was about.
             heard = agent.heard
-            if heard is not None and config.call_pull and heard[3] < 0.5:   # not toward a cry of fear
-                need = max(water_need, 1.0 - agent.energy / config.max_energy, agent.loneliness)
+            if heard is not None and config.call_pull and heard[3] < 0.5 and water_need < 0.5:
+                # (not toward a cry of fear, and not when thirst should lead them to water)
+                need = max(1.0 - agent.energy / config.max_energy, agent.loneliness)
                 if need > 0.5:
                     for m in cls._toward(round(heard[0] * 10), round(heard[1] * 10)):
                         pull[i, m] += config.call_pull * need
@@ -299,9 +302,10 @@ class BrainPolicy:
         if not config.build_urge:
             return pick, drop, steer
         for i, agent in enumerate(agents):
-            if agent.memory.shelter_at is None or agent.cold_memory < 0.2 or agent.age < config.maturity_age:
+            desire = max(agent.cold_memory, agent.shelter_want)
+            if agent.memory.shelter_at is None or desire < 0.2 or agent.age < config.maturity_age:
                 continue
-            want = config.build_urge * agent.cold_memory
+            want = config.build_urge * desire
             x, y = agent.x, agent.y
             held = config.item(agent.hands)
             if held is None:
@@ -322,9 +326,12 @@ class BrainPolicy:
             x0, y0 = max(0, x - r), max(0, y - r)
             window = (world.piles[x0:x + r + 1, y0:y + r + 1] > 0) & ~world.shelter[x0:x + r + 1, y0:y + r + 1]
             found = np.argwhere(window)
+            build_site = agent.hippo.recall("build", x, y, agent.hippo_now) if config.hippocampus else None
             if len(found):
                 d = np.abs(found - [x - x0, y - y0]).max(1)
                 tx, ty = found[int(d.argmin())] + [x0, y0]
+            elif build_site is not None:   # a pile they saw someone building
+                tx, ty = build_site[0], build_site[1]
             else:
                 tx, ty = sx, sy
             for m in cls._toward(int(tx) - x, int(ty) - y):

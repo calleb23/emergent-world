@@ -7,6 +7,7 @@ and a rock is just grey.
 import numpy as np
 
 from emergent_world.agents.emotions import SOCIAL_SIZE, social_inputs
+from emergent_world.agents.hippocampus import MEMORY_SIZE, memory_inputs
 from emergent_world.world.grid import LIQUIDS, WATER
 from emergent_world.world.physics import FIRE_COLOR
 
@@ -29,7 +30,8 @@ TOUCH_LIQUID = UNDERFOOT + 3
 HANDS = TOUCH_LIQUID + 5
 BOREDOM, EXPOSED, LIGHT, AT_SHELTER, PILE = HANDS + 3, HANDS + 4, HANDS + 5, HANDS + 6, HANDS + 7
 SOCIAL = PILE + 1          # feelings and other people: see agents/emotions.py
-INPUT_SIZE = SOCIAL + SOCIAL_SIZE
+MEMORY = SOCIAL + SOCIAL_SIZE   # what's recalled: direction and strength of the best water, food, shelter
+INPUT_SIZE = MEMORY + MEMORY_SIZE
 
 
 def _norm(color) -> tuple:
@@ -113,7 +115,8 @@ def sense_all(agents: list, world, config, reach: int | None = None) -> np.ndarr
     inputs[:, TOUCH_LIQUID + 4] = [1.0 if any(s.delay == 0 for s in a.sicknesses) else 0.0
                                   for a in agents]
     for k, a in enumerate(agents):
-        inputs[k, SOCIAL:] = social_inputs(a, agents, config)
+        inputs[k, SOCIAL:MEMORY] = social_inputs(a, agents, config)
+        inputs[k, MEMORY:] = memory_inputs(a)
     return inputs
 
 
@@ -159,7 +162,8 @@ def sense(agent, world, occupied: np.ndarray, config, people=()) -> np.ndarray:
     inputs[i + 2] = agent.health / config.max_health
     inputs[i + 3] = 1.0 if any(s.delay == 0 for s in agent.sicknesses) else 0.0
     inputs[HANDS:HANDS + 8] = _feelings(agent, world, config)
-    inputs[SOCIAL:] = social_inputs(agent, people, config)
+    inputs[SOCIAL:MEMORY] = social_inputs(agent, people, config)
+    inputs[MEMORY:] = memory_inputs(agent)
     return inputs
 
 
