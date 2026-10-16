@@ -7,8 +7,9 @@ from emergent_world.world import physics
 from emergent_world.world.grid import NO_PLANT
 
 
-def _sim(climate=False):
-    sim = Simulation(Config(initial_agents=1, min_population=0, climate=climate), seed=0)
+def _sim(climate=False, harsh_winter=False):
+    extra = {"winter_temperature": 2.0, "winter_growth": 0.25} if harsh_winter else {}
+    sim = Simulation(Config(initial_agents=1, min_population=0, climate=climate, **extra), seed=0)
     sim.world.terrain[:] = 0
     sim.world.plants[:] = NO_PLANT
     a = sim.agents[0]
@@ -52,7 +53,7 @@ def test_wolves_bite_people_next_to_them():
 
 
 def test_a_pelt_keeps_off_a_cold_night_but_not_the_rain():
-    sim, a, item = _sim(climate=True)
+    sim, a, item = _sim(climate=True, harsh_winter=True)
     from emergent_world import behaviour
     c = sim.climate
     c.weather = "clear"
@@ -103,7 +104,7 @@ def test_rain_brings_mushrooms_and_fills_pots():
 
 
 def test_berry_bushes_fruit_in_season_only():
-    sim, a, item = _sim(climate=True)
+    sim, a, item = _sim(climate=True, harsh_winter=True)
     sim.world.plants[20, 20] = item("berry bush")
     c = sim.climate
     c.weather = "clear"
