@@ -160,6 +160,9 @@ class Recorder:
                 if vals else None
             out[f"gene_{g}_sd"] = round(float(np.std(np.log(vals))), 4) if vals else None
         out.update(self.ecology_metrics())
+        shelters = [r["shelters"] for r in self.rows] or [0]
+        out["shelters_max"] = int(max(shelters))
+        out["shelters_last_year"] = round(float(np.mean(shelters[-365:])), 2)
         out["made_kinds_ever"] = int((self.made_activity > 0).sum())
         out["established_made"] = len(self.made_first_established)
         out["made_activity_total"] = int(self.made_activity.sum())
