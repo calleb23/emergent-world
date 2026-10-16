@@ -73,3 +73,43 @@ almost no information about the caller's situation (about 0.001 bits).
   Population differences are within the noise.
 - Seeing others sheltered (emulation) adds nothing yet: the cold itself already
   makes people want shelter.
+
+## Replay made people walk away from water, and the fix (commit `faebbf5`)
+
+Sleep replay trained brains to value wandering above drinking: thirsty people beside
+water drank 6-11% of the time (29% without replay), because the learned value of
+moving (about 19) outgrew drinking (about 12) while the built-in thirst urge stayed
+at 3-5. Replaying only moments that clearly felt good or bad didn't fix it; valuing
+what came next by the action actually taken made drinking look worse still. A thirst
+urge that stays strong relative to learned values (15, was 5) restored drinking
+(80-100% when parched beside water).
+
+Reference `v9` = current code (thirst urge 15, replay 4 per sleeping hour); `v7` = the
+previous run (thirst urge 5):
+
+| metric | v9 | v9-no-replay | v9-replay2 | v7 |
+|---|---|---|---|---|
+| alive_mean | 51.1 | +0.793 (-9.9, +12) | -0.303 (-13, +12) | -5.83 (-17, +5.3) |
+| alive_last_year | 50 | -8.07 (-21, +5) | -4.29 (-20, +11) | -12.1 (-26, +1.7) |
+| floor_share | 0 | +0 (+0, +0) | +0 (+0, +0) | +0 (+0, +0) |
+| net_growth_late | -12.8 | -2.58 (-8.7, +3.5) | -0.916 (-6, +4.1) | -2.25 (-6.6, +2.2) |
+| life_expectancy_days | 305 | -16.1 (-33, +2) | -14.1 (-30, +3.3) | **-22.4 (-38, -5)** |
+| births_per_person_year | 1.04 | +0.0543 (-0.018, +0.12) | +0.0448 (-0.016, +0.1) | **+0.0735 (+0.0066, +0.13)** |
+| max_generation | 7.88 | +0.25 (-0.75, +1.2) | +1.12 (-0.25, +2.5) | +1.25 (-0.38, +2.9) |
+| share_dehydration | 0.0686 | +0.0111 (-0.018, +0.042) | -0.00489 (-0.027, +0.017) | **+0.139 (+0.11, +0.17)** |
+| share_starvation | 0.49 | -0.0257 (-0.082, +0.029) | -0.00504 (-0.092, +0.073) | -0.0406 (-0.09, +0.0086) |
+| share_poison | 0.231 | **+0.0393 (+0.015, +0.065)** | +0.0223 (-0.0085, +0.053) | -0.0158 (-0.038, +0.0084) |
+| discoveries | 7.5 | -0.375 (-1, +0.25) | -0.125 (-0.75, +0.5) | +0.375 (-0.38, +1.1) |
+| count_transmission | 854 | **-180 (-3.6e+02, -2.7)** | -35.4 (-2.6e+02, +1.9e+02) | -54.5 (-2.7e+02, +1.6e+02) |
+| count_comfort | 7.38e+04 | **+9.64e+04 (+4.4e+04, +1.5e+05)** | +2.51e+04 (-8.4e+03, +5.9e+04) | -2.22e+04 (-4.4e+04, +1.2e+03) |
+| mood_mean | -0.508 | -0.0293 (-0.15, +0.088) | -0.0714 (-0.23, +0.076) | -0.0807 (-0.19, +0.024) |
+
+| | v9 | no replay | replay 2/h | v7 |
+|---|---|---|---|---|
+| most shelters at once | **18.3** | 6.1 | 16.0 | 15.8 |
+| shelters standing in the final year | **11.9** | 2.8 | 10.0 | 9.1 |
+| lessons taught | 3,209 | 1,797 | 2,937 | 2,855 |
+| calls that led to food or water | 4,516 | 2,681 | 3,954 | 3,834 |
+
+Thirst falls from 21% of deaths to 7%, and life expectancy rises by 22 days (both
+clear against `v7`). Replay still triples shelter-building (clear against no replay).
