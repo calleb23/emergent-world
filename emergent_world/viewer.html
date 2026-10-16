@@ -1,11 +1,14 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Emergent World</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: a field-station log. The map is the specimen on the left; the followed
-   person's record sits beside it, and stacks below the map on a phone. */
+/* Layout: a field-station log. A strip of world readings up top (population, what
+   everyone is doing, how they feel, how they die); the map is the specimen below it,
+   with the followed person's record beside it, stacking under the map on a phone. */
 :root {
   --bg: #eceee8;
   --surface: #f7f8f4;
@@ -20,6 +23,8 @@
   --rest: #7a68b8;
   --danger: #b84a3a;
   --live: #2f8f4e;
+  --tip-bg: #1c231e;
+  --tip-ink: #f2f4ef;
   --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -28,75 +33,115 @@
   :root:not([data-theme="light"]) {
     --bg: #111511; --surface: #191f1a; --ink: #e2e8e0; --muted: #8f9a90; --line: #2b332c;
     --accent: #e2a73c; --accent-soft: #3a2e17; --energy: #d9a43a; --water: #5e9be0;
-    --health: #5cb877; --rest: #9d8be0; --danger: #e07562; --live: #5cc47f; color-scheme: dark;
+    --health: #5cb877; --rest: #9d8be0; --danger: #e07562; --live: #5cc47f;
+    --tip-bg: #e2e8e0; --tip-ink: #111511; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #111511; --surface: #191f1a; --ink: #e2e8e0; --muted: #8f9a90; --line: #2b332c;
   --accent: #e2a73c; --accent-soft: #3a2e17; --energy: #d9a43a; --water: #5e9be0;
-  --health: #5cb877; --rest: #9d8be0; --danger: #e07562; --live: #5cc47f; color-scheme: dark;
+  --health: #5cb877; --rest: #9d8be0; --danger: #e07562; --live: #5cc47f;
+  --tip-bg: #e2e8e0; --tip-ink: #111511; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
-  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
   padding-block: 20px 32px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 18px; }
 h1 { font-family: var(--display); font-weight: 700; font-size: clamp(24px, 4vw, 32px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; display: flex; align-items: center; gap: 12px; }
+h3 { font-family: var(--display); font-weight: 600; font-size: 15px; margin: 0; }
 .badge { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
 .badge.live { color: var(--live); border-color: var(--live); }
-.sub { color: var(--muted); margin: 0; }
+.sub { color: var(--muted); margin: 0; max-width: 70ch; }
 .clock { display: grid; justify-items: end; gap: 2px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .clock b { font-weight: 500; font-size: 16px; }
 .clock span { color: var(--muted); font-size: 13px; }
+
+/* World readings */
+.readings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 980px) { .readings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .readings { grid-template-columns: minmax(0, 1fr); } }
+.reading { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.big { font-family: var(--mono); font-size: 26px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.big small { font-size: 13px; color: var(--muted); font-weight: 400; }
+.spark { width: 100%; height: 46px; display: block; }
+.minor { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.stack i { display: block; height: 100%; }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; font-size: 13px; }
+.kv span:nth-child(even) { font-family: var(--mono); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.kv .dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.meter { display: grid; grid-template-columns: 78px minmax(0, 1fr) 30px; align-items: center; gap: 8px; font-size: 13px; }
+.meter span:last-child { font-family: var(--mono); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Main */
 .main { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 22px; align-items: start; }
-@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } .clock { justify-items: start; } }
-.stage { display: grid; gap: 10px; min-width: 0; }
-canvas { width: 100%; max-width: 100%; aspect-ratio: 1; display: block; image-rendering: pixelated; border-radius: 4px; cursor: pointer; background: #22341e; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .clock { justify-items: start; } }
+.stage { display: grid; gap: 12px; min-width: 0; }
+.mapbox { position: relative; min-width: 0; }
+canvas#map { width: 100%; max-width: 100%; aspect-ratio: 1; display: block; image-rendering: pixelated; border-radius: 4px; cursor: crosshair; background: #22341e; }
+.tip { position: absolute; pointer-events: none; background: var(--tip-bg); color: var(--tip-ink); font-size: 13px; line-height: 1.4; padding: 7px 10px; border-radius: 6px; max-width: 250px; z-index: 2; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+.tip b { font-weight: 700; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
 button:hover, select:hover { border-color: var(--muted); }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #play { min-width: 84px; font-weight: 700; }
 input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13px; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.key { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13px; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; flex: none; }
+.pd { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 .ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); display: inline-block; }
+details { border-top: 1px solid var(--line); padding-top: 8px; }
+summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 16px; margin-top: 10px; }
+.groups div { display: grid; gap: 2px; font-size: 13px; }
+.groups p { margin: 0; display: flex; align-items: center; gap: 6px; }
+.groups p em { font-style: normal; font-family: var(--mono); color: var(--muted); margin-left: auto; }
+
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
 .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 .who h2 { font-family: var(--display); font-weight: 600; font-size: 26px; margin: 0; color: var(--accent); }
 .status { font-size: 14px; color: var(--muted); }
 .status.dead { color: var(--danger); }
+.now { font-size: 15px; }
+.now b { color: var(--accent); }
 .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .fact { display: grid; gap: 2px; }
 .fact b { font-family: var(--mono); font-weight: 500; font-size: 17px; font-variant-numeric: tabular-nums; }
 .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .bars { display: grid; gap: 6px; }
-.bar { display: grid; grid-template-columns: 64px minmax(0, 1fr) 40px; align-items: center; gap: 8px; font-size: 13px; }
+.bar { display: grid; grid-template-columns: 78px minmax(0, 1fr) 40px; align-items: center; gap: 8px; font-size: 13px; }
 .track { height: 9px; background: var(--line); border-radius: 5px; overflow: hidden; }
 .fill { height: 100%; border-radius: 5px; transition: width 0.15s linear; }
 .bar span:last-child { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.chip { font-family: var(--mono); font-size: 13px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.chip { font-family: var(--mono); font-size: 13px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+button.chip { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .chip.gone { color: var(--muted); text-decoration: line-through; }
 .chip.on { border-color: var(--accent); background: var(--accent-soft); }
-.wary { display: grid; gap: 4px; }
+.chip.note-chip { font-family: var(--body); }
+.twocol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 520px) { .twocol { grid-template-columns: minmax(0, 1fr); } }
+.wary { display: grid; gap: 4px; align-content: start; }
 [hidden] { display: none !important; }
-.wary-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 10px; align-items: center; font-size: 14px; }
+.wary-row { display: grid; grid-template-columns: minmax(0, 1fr) 80px; gap: 10px; align-items: center; font-size: 14px; }
 .wary-row .track { height: 7px; }
 .auto { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .story { display: grid; max-height: 380px; overflow-y: auto; border-top: 1px solid var(--line); }
-.story div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.story div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
 .story time { font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
-.story p { margin: 0; }
+.story p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .story .bad { color: var(--danger); }
-.people { display: grid; gap: 8px; }
+.story .good { color: var(--live); }
+.section { display: grid; gap: 8px; }
 .empty { color: var(--muted); font-style: italic; }
-.note { color: var(--danger); font-size: 14px; }
+.note { color: var(--danger); font-size: 14px; margin: 0; }
 @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
 </style>
 
@@ -109,26 +154,56 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
     <div class="clock"><b id="clock">Year 1, day 1, 00:00</b><span id="sky">spring, clear</span></div>
   </header>
 
+  <section class="readings" aria-label="The world right now">
+    <div class="reading">
+      <h3>People</h3>
+      <div class="big" id="alive">0 <small>alive</small></div>
+      <canvas class="spark" id="spark" aria-label="People alive over time"></canvas>
+      <div class="minor" id="vitals">0 born, 0 died</div>
+    </div>
+    <div class="reading">
+      <h3>What they're doing</h3>
+      <div class="stack" id="doing-bar"></div>
+      <div class="kv" id="doing"></div>
+    </div>
+    <div class="reading">
+      <h3>How they feel, on average</h3>
+      <div class="bars" id="moods"></div>
+      <div class="minor" id="needs"></div>
+    </div>
+    <div class="reading">
+      <h3>Deaths so far</h3>
+      <div class="kv" id="causes"></div>
+    </div>
+  </section>
+
+  <section class="section" aria-label="Discoveries and social life">
+    <div class="row" id="found"></div>
+    <div class="row" id="social"></div>
+  </section>
+
   <div class="main">
     <section class="stage">
-      <canvas id="map" width="640" height="640" aria-label="Map of the world: ponds, items and people"></canvas>
+      <div class="mapbox">
+        <canvas id="map" width="640" height="640" aria-label="Map of the world: ponds, items and people. Hover to see what's there; click someone to follow them."></canvas>
+        <div class="tip" id="tip" hidden></div>
+      </div>
       <div class="controls">
         <button id="play" type="button">Play</button>
         <select id="speed" aria-label="Playback speed"></select>
         <input id="scrub" type="range" min="0" value="0" aria-label="Time">
       </div>
       <p class="note" id="note" hidden></p>
-      <div class="legend" id="legend"></div>
-      <div class="people">
-        <span class="label">Alive now</span>
+      <div class="key" id="key"></div>
+      <details id="items-box">
+        <summary id="items-summary">Everything on the map now</summary>
+        <div class="groups" id="items"></div>
+      </details>
+      <div class="section">
+        <span class="label">Alive now (click to follow)</span>
         <div class="row" id="people"></div>
       </div>
-      <div class="people" id="world-box" hidden>
-        <span class="label">The world so far</span>
-        <div class="row" id="world-facts"></div>
-        <div class="row" id="world-found"></div>
-      </div>
-      <div class="people">
+      <div class="section">
         <span class="label">World history, latest first</span>
         <div class="story" id="history"></div>
       </div>
@@ -139,6 +214,7 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
         <h2 id="who">#0</h2>
         <span class="status" id="status"></span>
       </div>
+      <p class="now" id="now"></p>
       <div class="facts">
         <div class="fact"><span class="label">Age</span><b id="age">0 days</b></div>
         <div class="fact"><span class="label">Generation</span><b id="gen">0</b></div>
@@ -146,13 +222,15 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
       </div>
       <div class="bars" id="bars"></div>
       <div class="row"><span class="label">Family</span><span id="family" class="row"></span></div>
-      <div id="feel-box" class="wary" hidden>
-        <span class="label">Feeling</span>
-        <div id="feel" class="wary"></div>
-      </div>
-      <div id="trait-box" class="wary" hidden>
-        <span class="label">Personality</span>
-        <div id="trait" class="wary"></div>
+      <div class="twocol">
+        <div id="feel-box" class="wary" hidden>
+          <span class="label">Feeling</span>
+          <div id="feel" class="wary"></div>
+        </div>
+        <div id="trait-box" class="wary" hidden>
+          <span class="label">Personality</span>
+          <div id="trait" class="wary"></div>
+        </div>
       </div>
       <div id="grudge-box" class="wary" hidden>
         <span class="label">Holds a grudge against</span>
@@ -167,8 +245,8 @@ input[type=range] { flex: 1 1 200px; accent-color: var(--accent); min-width: 0; 
         <div id="wary" class="wary"></div>
       </div>
       <label class="auto"><input type="checkbox" id="auto" checked> Follow automatically (moves to a child when someone dies)</label>
-      <div>
-        <div class="label" style="margin-bottom:6px">Life so far, latest first</div>
+      <div class="section">
+        <div class="label">Life so far, latest first</div>
         <div class="story" id="story"></div>
       </div>
     </aside>
@@ -180,13 +258,31 @@ const DATA = /*VIEWER_DATA*/null;
 (function () {
   const LIVE = DATA.mode === "live";
   const W = DATA.width, H = DATA.height, TPD = DATA.ticksPerDay;
+  const NF = DATA.agentFields || 8;
+  const ACTS = DATA.activities || [];
   const el = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
   const ITEM_COLORS = [null, ...DATA.items.map(k => rgb(k.color))];
   const GRASS = "#22341e", WATER = "#28609f";
   const terrain = Uint8Array.from(DATA.terrain, ch => ch.charCodeAt(0) - 48);
   const VISIBILITY = { clear: 1, cloudy: 0.9, rain: 0.7, storm: 0.4, fog: 0.4, snow: 0.5 };
   const SEASONS = ["spring", "summer", "autumn", "winter"];
+  const SOCIAL_NAMES = { gift: ["gift", "gifts"], comfort: ["comfort", "comforts"], hit: ["blow", "blows"],
+                         theft: ["theft", "thefts"], taught: ["lesson taught", "lessons taught"],
+                         transmission: ["skill copied", "skills copied"], call_answered: ["call answered", "calls answered"] };
+
+  // What someone is doing, sorted into a few kinds for the overview bar.
+  const KINDS = [
+    ["Sleeping or resting", "--rest", ["sleeping", "sheltering", "resting"]],
+    ["Eating and drinking", "--water", ["drinking", "eating", "looking for water", "looking for food"]],
+    ["Working with things", "--energy", ["picking something up", "striking something", "rubbing something",
+                                        "putting something down", "carrying something"]],
+    ["With others", "--health", ["giving something", "comforting someone", "calling out", "following a parent"]],
+    ["Struggling", "--danger", ["taking something", "fighting", "afraid", "angry", "lonely", "grieving", "out in the weather"]],
+    ["Wandering", "--muted", ["wandering", ""]],
+  ];
+  const kindOf = label => KINDS.findIndex(k => k[2].includes(label));
 
   // ---- the calendar (1 tick = 1 hour), matching world/climate.py ----
   const light = t => {
@@ -205,25 +301,27 @@ const DATA = /*VIEWER_DATA*/null;
     const day = Math.floor(t / TPD);
     return `y${Math.floor(day / 365) + 1} d${day % 365 + 1}`;
   };
+  const nameOf = id => (LIVE ? (state && state.names && state.names[id]) : DATA.people[id] && DATA.people[id].name) || "#" + id;
 
-  // ---- legend ----
-  const legend = el("legend");
-  DATA.items.forEach(k => {
-    const s = document.createElement("span");
-    s.innerHTML = `<i class="sw" style="background:${rgb(k.color)}"></i>`;
-    s.append(k.look);
-    legend.appendChild(s);
-  });
-  legend.insertAdjacentHTML("beforeend",
-    `<span><i class="sw" style="background:${WATER}"></i>pond</span><span><i class="sw" style="background:rgb(255,125,35)"></i>fire</span>` +
-    `<span><i class="sw" style="background:#8a6a44"></i>shelter</span><span><i class="sw" style="background:#6b5236"></i>stick pile</span>` +
-    `<span><i class="ring"></i>followed, and how far they see</span>`);
+  // ---- the always-visible key, and the full item list by kind ----
+  el("key").innerHTML =
+    `<span><i class="pd" style="background:#fff"></i>awake</span><span><i class="pd" style="background:#9cbfd8"></i>asleep</span>` +
+    `<span><i class="ring"></i>followed, and how far they see</span><span><i class="sw" style="background:${WATER}"></i>pond</span>` +
+    `<span><i class="sw" style="background:rgb(255,125,35)"></i>fire</span><span><i class="sw" style="background:#8a6a44"></i>shelter</span>` +
+    `<span><i class="sw" style="background:#6b5236"></i>stick pile</span>`;
+  const GROUP_NAMES = { plant: "Plants", berry: "Berries", mushroom: "Mushrooms", nut: "Nuts", fruit: "Fruit", egg: "Eggs",
+                        sweet: "Sweet things", critter: "Small creatures", animal: "Animals", meat: "Meat", cooked: "Cooked food",
+                        tree: "Trees", wood: "Wood", debris: "Rocks, sticks and ash", stone: "Stone", tool: "Tools",
+                        material: "Materials", hive: "Hives", seed: "Seeds" };
 
   function parseAgents(flat) {
     const out = [];
-    for (let k = 0; k < flat.length; k += 8) {
+    for (let k = 0; k < flat.length; k += NF) {
       out.push({ id: flat[k], x: flat[k + 1], y: flat[k + 2], energy: flat[k + 3], water: flat[k + 4],
-                 health: flat[k + 5], rest: flat[k + 6], asleep: !!flat[k + 7] });
+                 health: flat[k + 5], rest: flat[k + 6], asleep: !!flat[k + 7],
+                 doing: NF > 8 ? ACTS[flat[k + 8]] || "" : "",
+                 fear: NF > 8 ? flat[k + 9] / 10 : 0, anger: NF > 8 ? flat[k + 10] / 10 : 0,
+                 lonely: NF > 8 ? flat[k + 11] / 10 : 0, joy: NF > 8 ? flat[k + 12] / 10 : 0 });
     }
     return out;
   }
@@ -234,6 +332,7 @@ const DATA = /*VIEWER_DATA*/null;
 
   // Replay: rebuild state for any frame from the recording.
   const frames = LIVE ? [] : DATA.frames;
+  const replayAlive = LIVE ? [] : frames.map(f => f[3].length / NF);
   let frame = 0, playing = false;
   let plants = null, plantsDay = -1;
   function plantsOn(day) {
@@ -252,13 +351,25 @@ const DATA = /*VIEWER_DATA*/null;
     plantsDay = day;
     return plants;
   }
+  function replayWorld(i, t) {
+    const c = frames[i][7];
+    const causes = {};
+    for (const p of Object.values(DATA.people)) {
+      if (p.died !== null && p.died <= t && p.died > (DATA.startTick || 0)) causes[p.cause] = (causes[p.cause] || 0) + 1;
+    }
+    const social = {};
+    if (c) (DATA.socialKeys || []).forEach((k, j) => { social[k] = c[2 + j]; });
+    return { births: c ? c[0] : 0, deaths: c ? c[1] : 0,
+             causes: Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k.replace("_", " "), n]),
+             discoveries: (DATA.discoveries || []).filter(d => d[1] <= t), social };
+  }
   function replayState(i) {
     const f = frames[i], since = i * DATA.frameEvery, t = (DATA.startTick || 0) + since;
     if (auto && f[0] >= 0) followed = f[0];
     return { tick: t, weather: DATA.weatherNames[f[1]], temp: f[2], season: season(t),
              plants: plantsOn(Math.floor(since / TPD)), agents: parseAgents(f[3]),
              fires: f[4] || [], shelters: f[5] || [], piles: f[6] || [],
-             followed, person: DATA.people[followed] };
+             followed, person: DATA.people[followed], world: replayWorld(i, t) };
   }
 
   // Live: ask the running simulation.
@@ -269,7 +380,6 @@ const DATA = /*VIEWER_DATA*/null;
     try {
       const r = await fetch("/state", { cache: "no-store" });
       const s = await r.json();
-      if (!auto) s.followed = s.followed;   // server keeps your choice
       if (DATA.version && s.version && s.version !== DATA.version) { location.reload(); return; }
       followed = s.followed;
       auto = s.auto; el("auto").checked = auto;
@@ -288,7 +398,7 @@ const DATA = /*VIEWER_DATA*/null;
   }
   const control = q => fetch("/control?" + q, { method: "POST" }).then(poll).catch(() => {});
 
-  // ---- drawing ----
+  // ---- drawing the map ----
   const canvas = el("map"), ctx = canvas.getContext("2d");
   function draw() {
     const s = state, size = canvas.width, cell = size / W;
@@ -297,9 +407,8 @@ const DATA = /*VIEWER_DATA*/null;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = y * W + x;
       if (terrain[i] === 1) { ctx.fillStyle = WATER; ctx.fillRect(x * cell, y * cell, cell + 0.5, cell + 0.5); }
-      else if (s.plants[i]) { ctx.fillStyle = ITEM_COLORS[s.plants[i]]; ctx.fillRect(x * cell + cell * 0.2, y * cell + cell * 0.2, cell * 0.6, cell * 0.6); }
+      else if (s.plants[i]) { ctx.fillStyle = ITEM_COLORS[s.plants[i]]; ctx.fillRect(x * cell + cell * 0.18, y * cell + cell * 0.18, cell * 0.64, cell * 0.64); }
     }
-    // Stick piles, shelters and fires.
     const at = i => [(i % W) * cell, Math.floor(i / W) * cell];
     ctx.fillStyle = "#6b5236";
     for (const i of s.piles || []) { const [x, y] = at(i); ctx.fillRect(x + cell * 0.15, y + cell * 0.55, cell * 0.7, cell * 0.3); }
@@ -308,10 +417,8 @@ const DATA = /*VIEWER_DATA*/null;
       ctx.fillStyle = "#8a6a44";
       ctx.beginPath(); ctx.moveTo(x - cell * 0.1, y + cell); ctx.lineTo(x + cell / 2, y - cell * 0.1); ctx.lineTo(x + cell * 1.1, y + cell); ctx.fill();
     }
-    // Night falls over everything.
     const dark = 1 - light(s.tick);
     if (dark > 0) { ctx.fillStyle = `rgba(8,12,30,${(dark * 0.7).toFixed(3)})`; ctx.fillRect(0, 0, size, size); }
-    // Weather.
     if (s.weather === "fog") { ctx.fillStyle = "rgba(200,205,210,0.35)"; ctx.fillRect(0, 0, size, size); }
     if (s.weather === "rain" || s.weather === "storm" || s.weather === "snow") {
       const n = s.weather === "storm" ? 260 : 160;
@@ -325,7 +432,6 @@ const DATA = /*VIEWER_DATA*/null;
         else { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - cell * 0.3, y + cell * 0.9); ctx.stroke(); }
       }
     }
-    // Fires glow through the dark.
     for (const i of s.fires || []) {
       const [x, y] = at(i);
       const g = ctx.createRadialGradient(x + cell / 2, y + cell / 2, 0, x + cell / 2, y + cell / 2, cell * 2.5);
@@ -333,16 +439,21 @@ const DATA = /*VIEWER_DATA*/null;
       ctx.fillStyle = g; ctx.fillRect(x - cell * 2, y - cell * 2, cell * 5, cell * 5);
       ctx.fillStyle = "rgb(255,125,35)"; ctx.fillRect(x + cell * 0.15, y + cell * 0.15, cell * 0.7, cell * 0.7);
     }
-    // People: dimmer and bluish while asleep.
+    // People: white when well, reddening as health falls; pale blue and smaller asleep.
     for (const a of s.agents) {
       const h = Math.max(0, Math.min(1, a.health / 100));
-      ctx.fillStyle = a.asleep ? `rgb(150,${Math.round(120 + 40 * h)},${Math.round(150 + 60 * h)})`
+      ctx.fillStyle = a.asleep ? `rgb(${Math.round(120 + 36 * h)},${Math.round(150 + 41 * h)},${Math.round(180 + 36 * h)})`
                                : `rgb(255,${Math.round(80 + 175 * h)},${Math.round(80 + 175 * h)})`;
       ctx.beginPath(); ctx.arc((a.x + 0.5) * cell, (a.y + 0.5) * cell, cell * (a.asleep ? 0.36 : 0.45), 0, Math.PI * 2); ctx.fill();
+      if (!a.asleep && a.doing === "fighting") { ctx.strokeStyle = "rgb(255,70,60)"; ctx.lineWidth = Math.max(1, cell * 0.15); ctx.stroke(); }
+    }
+    if (hoverTile) {
+      ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = Math.max(1, cell * 0.1);
+      ctx.strokeRect(hoverTile[0] * cell, hoverTile[1] * cell, cell, cell);
     }
     const f = s.agents.find(a => a.id === s.followed);
     if (f) {
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#e2a73c";
+      const accent = css("--accent") || "#e2a73c";
       const reach = Math.max(2, Math.round(DATA.visionRange * light(s.tick) * (VISIBILITY[s.weather] || 1)));
       ctx.strokeStyle = accent; ctx.lineWidth = Math.max(2, cell * 0.22);
       ctx.beginPath(); ctx.arc((f.x + 0.5) * cell, (f.y + 0.5) * cell, cell * 1.1, 0, Math.PI * 2); ctx.stroke();
@@ -352,21 +463,145 @@ const DATA = /*VIEWER_DATA*/null;
     }
   }
 
-  // ---- the panel ----
+  // ---- world readings ----
+  const spark = el("spark"), sctx = spark.getContext("2d");
+  function drawSpark(series, mark) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.round(spark.getBoundingClientRect().width * dpr), h = Math.round(46 * dpr);
+    if (spark.width !== w || spark.height !== h) { spark.width = w; spark.height = h; }
+    sctx.clearRect(0, 0, w, h);
+    if (series.length < 2) return;
+    const top = Math.max(...series, 1), pad = 3 * dpr;
+    const X = i => i / (series.length - 1) * (w - 2 * pad) + pad, Y = v => h - pad - v / top * (h - 2 * pad);
+    sctx.strokeStyle = css("--line"); sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(0, Y(top) + 0.5); sctx.lineTo(w, Y(top) + 0.5); sctx.stroke();
+    sctx.beginPath(); sctx.moveTo(X(0), h);
+    series.forEach((v, i) => sctx.lineTo(X(i), Y(v)));
+    sctx.lineTo(X(series.length - 1), h); sctx.closePath();
+    sctx.globalAlpha = 0.18; sctx.fillStyle = css("--live"); sctx.fill(); sctx.globalAlpha = 1;
+    sctx.beginPath(); series.forEach((v, i) => i ? sctx.lineTo(X(i), Y(v)) : sctx.moveTo(X(i), Y(v)));
+    sctx.strokeStyle = css("--live"); sctx.lineWidth = 1.5 * dpr; sctx.stroke();
+    const m = Math.max(0, Math.min(series.length - 1, mark));
+    sctx.fillStyle = css("--accent");
+    sctx.beginPath(); sctx.arc(X(m), Y(series[m]), 3 * dpr, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = css("--muted"); sctx.font = `${11 * dpr}px ${css("--mono") || "monospace"}`;
+    sctx.fillText(`peak ${top}`, pad, Y(top) + 12 * dpr);
+  }
+  const avg = (list, key) => list.length ? list.reduce((s, a) => s + a[key], 0) / list.length : 0;
+  function readings() {
+    const s = state, people = s.agents, w = s.world || {};
+    el("alive").innerHTML = `${people.length} <small>alive</small>`;
+    const asleep = people.filter(a => a.asleep).length;
+    el("vitals").textContent = `${w.births ?? "?"} born, ${w.deaths ?? "?"} died so far · ${asleep} asleep now`;
+    if (LIVE) drawSpark([...(s.population || []), people.length], (s.population || []).length);
+    else drawSpark(replayAlive, frame);
+
+    const counts = KINDS.map(() => 0), labels = {};
+    for (const a of people) {
+      const k = kindOf(a.doing); counts[k < 0 ? KINDS.length - 1 : k]++;
+      if (a.doing) labels[a.doing] = (labels[a.doing] || 0) + 1;
+    }
+    el("doing-bar").innerHTML = KINDS.map(([name, color], k) => counts[k]
+      ? `<i style="width:${counts[k] / Math.max(1, people.length) * 100}%;background:var(${color})" title="${name}: ${counts[k]}"></i>` : "").join("");
+    const top = Object.entries(labels).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    el("doing").innerHTML = top.length ? "" : '<span class="empty">nobody</span><span></span>';
+    for (const [label, n] of top) {
+      const k = kindOf(label), name = document.createElement("span");
+      name.innerHTML = `<i class="dot" style="background:var(${KINDS[k < 0 ? KINDS.length - 1 : k][1]})"></i>`;
+      name.append(label);
+      const v = document.createElement("span"); v.textContent = n;
+      el("doing").append(name, v);
+    }
+
+    el("moods").innerHTML = [["Fear", "fear", "--danger"], ["Anger", "anger", "--danger"], ["Loneliness", "lonely", "--rest"], ["Joy", "joy", "--live"]]
+      .map(([n, key, c]) => { const v = Math.round(avg(people, key) * 100);
+        return `<div class="meter"><span>${n}</span><div class="track"><div class="fill" style="width:${v}%;background:var(${c})"></div></div><span>${v}</span></div>`; }).join("");
+    const hungry = people.filter(a => a.energy < 30).length, thirsty = people.filter(a => a.water < 30).length,
+          hurt = people.filter(a => a.health < 50).length;
+    el("needs").textContent = `${hungry} hungry, ${thirsty} thirsty, ${hurt} badly hurt`;
+
+    const causes = w.causes || [], total = causes.reduce((s, c) => s + c[1], 0);
+    el("causes").innerHTML = causes.length ? "" : '<span class="empty">no one yet</span><span></span>';
+    for (const [cause, n] of causes.slice(0, 7)) {
+      const name = document.createElement("span"); name.textContent = cause;
+      const v = document.createElement("span"); v.textContent = `${n} · ${Math.round(n / total * 100)}%`;
+      el("causes").append(name, v);
+    }
+
+    const chipText = (text, cls = "chip") => Object.assign(document.createElement("span"), { className: cls, textContent: text });
+    const found = w.discoveries || [];
+    const fKey = found.map(d => d[0]).join(",");
+    if (el("found").dataset.key !== fKey) {
+      el("found").dataset.key = fKey;
+      el("found").replaceChildren(Object.assign(document.createElement("span"), { className: "label", textContent: "Discoveries" }),
+        ...(found.length ? found.map(([name, t]) => chipText(`${name} · ${stamp(t)}`, "chip note-chip"))
+                         : [Object.assign(document.createElement("span"), { className: "empty", textContent: "none yet" })]));
+    }
+    const social = Object.entries(w.social || {}).filter(([, n]) => n);
+    const sKey = social.map(e => e.join(":")).join(",");
+    if (el("social").dataset.key !== sKey) {
+      el("social").dataset.key = sKey;
+      el("social").replaceChildren(Object.assign(document.createElement("span"), { className: "label", textContent: "Between people" }),
+        ...(social.length ? social.map(([k, n]) => chipText(`${n} ${(SOCIAL_NAMES[k] || [k, k])[n === 1 ? 0 : 1]}`, "chip note-chip"))
+                          : [Object.assign(document.createElement("span"), { className: "empty", textContent: "nothing yet" })]));
+    }
+  }
+
+  // What's on the map now, by kind, with counts.
+  let itemsDay = -1;
+  function itemsOnMap() {
+    const day = Math.floor(state.tick / TPD);
+    if (!el("items-box").open || day === itemsDay) return;
+    itemsDay = day;
+    const n = new Array(DATA.items.length + 1).fill(0);
+    for (const v of state.plants) n[v]++;
+    const groups = {};
+    DATA.items.forEach((k, i) => { if (n[i + 1]) (groups[k.group] = groups[k.group] || []).push([k, n[i + 1]]); });
+    el("items").innerHTML = "";
+    for (const [g, list] of Object.entries(groups).sort((a, b) => b[1].reduce((s, x) => s + x[1], 0) - a[1].reduce((s, x) => s + x[1], 0))) {
+      const box = document.createElement("div");
+      box.innerHTML = `<span class="label">${GROUP_NAMES[g] || g}</span>`;
+      for (const [k, count] of list.sort((a, b) => b[1] - a[1])) {
+        const p = document.createElement("p");
+        p.innerHTML = `<i class="sw" style="background:${rgb(k.color)}"></i>`;
+        p.append(k.look + (k.harmful ? " (harmful)" : ""));
+        const em = document.createElement("em"); em.textContent = count; p.append(em);
+        box.appendChild(p);
+      }
+      el("items").appendChild(box);
+    }
+  }
+  el("items-box").addEventListener("toggle", () => { itemsDay = -1; if (state) itemsOnMap(); });
+
+  // ---- the followed person ----
   const isAlive = (id, t) => {
     if (LIVE) return state.agents.some(a => a.id === id);
     const p = DATA.people[id];
     return p && p.born <= t && (p.died === null || t < p.died);
   };
-  function chip(id, t) {
+  function chip(id, t, doing) {
     const b = document.createElement("button");
     const alive = isAlive(id, t);
     b.type = "button";
     b.className = "chip" + (alive ? "" : " gone") + (id === state.followed ? " on" : "");
-    b.textContent = "#" + id;
-    b.title = "Follow #" + id;
+    if (doing !== undefined) {
+      const k = kindOf(doing);
+      b.innerHTML = `<i class="pd" style="background:var(${KINDS[k < 0 ? KINDS.length - 1 : k][1]})"></i>`;
+      b.title = `${nameOf(id)}: ${doing || "wandering"}`;
+    } else b.title = "Follow " + nameOf(id);
+    b.append(nameOf(id));
     b.dataset.id = id;   // clicks are handled on the container, so rebuilding never loses one
     return b;
+  }
+  function describeNow(me, p) {
+    if (!me) return "";
+    const doing = me.asleep ? (me.doing || "sleeping") : (me.doing || "wandering");
+    const needs = [];
+    if (me.water < 30) needs.push("thirsty"); if (me.energy < 30) needs.push("hungry");
+    if (me.health < 50) needs.push("hurt"); if (me.rest < 25) needs.push("exhausted");
+    const feel = [["afraid", me.fear], ["angry", me.anger], ["lonely", me.lonely], ["happy", me.joy]]
+      .filter(f => f[1] >= 0.4).sort((a, b) => b[1] - a[1]).map(f => f[0]);
+    return `Now <b>${doing}</b>` + (needs.length ? `, ${needs.join(" and ")}` : "") + (feel.length ? `, feeling ${feel.join(" and ")}` : "") + ".";
   }
 
   function panel() {
@@ -375,16 +610,17 @@ const DATA = /*VIEWER_DATA*/null;
     el("sky").textContent = `${s.season || season(t)}, ${s.weather}, ${s.temp}°C`;
     const p = s.person;
     el("who").textContent = s.followed < 0 ? "nobody"
-      : s.person && s.person.name ? `${s.person.name} #${s.followed}` : "#" + s.followed;
-    if (!p) { el("status").textContent = "Click someone on the map."; return; }
+      : p && p.name ? `${p.name} #${s.followed}` : "#" + s.followed;
+    if (!p) { el("status").textContent = "Click someone on the map."; el("now").textContent = ""; return; }
     const dead = p.died !== null && t >= p.died, unborn = t < p.born;
     const me = s.agents.find(a => a.id === s.followed);
     const ageDays = Math.max(0, Math.floor(((dead ? p.died : t) - p.born) / TPD));
     el("status").className = "status" + (dead ? " dead" : "");
     el("status").textContent = unborn ? "not born yet"
       : dead ? `died of ${p.cause.replace("_", " ")}, ${when(p.died).toLowerCase()}`
-      : (me && me.asleep ? "asleep" : "awake") + `, expected to live about ${Math.round(p.lifespan / TPD)} days`;
+      : `expected to live about ${Math.round(p.lifespan / TPD)} days`;
     if (p.line) el("status").textContent += `. ${p.sex === "m" ? "He" : "She"} is of the ${p.line} line.`;
+    el("now").innerHTML = dead || unborn ? "" : describeNow(me, p);
     el("age").textContent = `${ageDays} days`;
     el("gen").textContent = p.generation;
     const kids = LIVE ? p.children : p.children.filter(c => DATA.people[c] && DATA.people[c].born <= t);
@@ -409,27 +645,11 @@ const DATA = /*VIEWER_DATA*/null;
       fam.innerHTML = "";
       const tag = text => { const s = document.createElement("span"); s.className = "status"; s.textContent = text; return s; };
       if (p.parent >= 0) fam.append(tag("parents"), chip(p.parent, t));
-    if (p.otherParent >= 0) fam.append(chip(p.otherParent, t));
+      if (p.otherParent >= 0) fam.append(chip(p.otherParent, t));
       if (kids.length) fam.append(tag("children"), ...kids.map(c => chip(c, t)));
       if (p.parent < 0 && !kids.length) { const s = tag("a founder, no children yet"); s.className = "empty"; fam.append(s); }
     }
 
-    el("known-box").hidden = !p.known;
-    if (p.known) {
-      const box = el("known");
-      const key = p.known.map(k => k.join(":")).join(",");
-      if (box.dataset.key !== key) {
-        box.dataset.key = key;
-        box.innerHTML = p.known.length ? "" : '<span class="empty">nobody yet</span>';
-        for (const [id, name, bond] of p.known) {
-          const row = document.createElement("div");
-          row.className = "wary-row";
-          row.innerHTML = `<span></span><div class="track"><div class="fill" style="width:${Math.round(bond * 100)}%;background:var(--rest)"></div></div>`;
-          row.firstChild.textContent = `${name} #${id}`;
-          box.appendChild(row);
-        }
-      }
-    }
     const levels = (boxId, listId, rows, color) => {
       el(boxId).hidden = !(rows && rows.length);
       if (!rows || !rows.length) return;
@@ -443,21 +663,12 @@ const DATA = /*VIEWER_DATA*/null;
         box.appendChild(row);
       }
     };
-    levels("feel-box", "feel", p.feelings, "var(--accent)");
+    const feelings = me && NF > 8 ? [["fear", me.fear], ["anger", me.anger], ["loneliness", me.lonely], ["joy", me.joy]] : p.feelings;
+    levels("feel-box", "feel", feelings, "var(--accent)");
     levels("trait-box", "trait", p.personality, "var(--rest)");
     levels("grudge-box", "grudge", p.grudges, "var(--danger)");
-    el("wary-box").hidden = !p.wary;
-    if (p.wary) {
-      const box = el("wary");
-      box.innerHTML = p.wary.length ? "" : '<span class="empty">nothing yet</span>';
-      for (const [look, level] of p.wary) {
-        const row = document.createElement("div");
-        row.className = "wary-row";
-        row.innerHTML = `<span></span><div class="track"><div class="fill" style="width:${Math.round(level * 100)}%;background:var(--danger)"></div></div>`;
-        row.firstChild.textContent = look;
-        box.appendChild(row);
-      }
-    }
+    levels("known-box", "known", p.known && p.known.map(([id, name, bond]) => [`${name} #${id}`, bond]), "var(--rest)");
+    levels("wary-box", "wary", p.wary, "var(--danger)");
 
     const story = el("story");
     const seen = p.events.filter(e => e[0] <= t);
@@ -468,25 +679,11 @@ const DATA = /*VIEWER_DATA*/null;
       for (let k = seen.length - 1; k >= 0; k--) {
         const [tick, text] = seen[k];
         const row = document.createElement("div");
-        const bad = /sick|Died|die \(|Parched|Starving|despite|Collapsed|Woke in the night/.test(text);
-        row.innerHTML = `<time>${stamp(tick)}</time><p${bad ? ' class="bad"' : ""}></p>`;
+        const bad = /sick|Died|die \(|Parched|Starving|despite|Collapsed|Woke in the night|Was hit|stung|Bitten|took their/.test(text);
+        const good = /Showed|showed them|Comforted|comforted them|learned|Became close|Had a child|made|Made|fire/.test(text);
+        row.innerHTML = `<time>${stamp(tick)}</time><p${bad ? ' class="bad"' : good ? ' class="good"' : ""}></p>`;
         row.querySelector("p").textContent = text;
         story.appendChild(row);
-      }
-    }
-
-    el("world-box").hidden = !s.world;
-    if (s.world) {
-      const w = s.world, facts = el("world-facts"), found = el("world-found");
-      const key = JSON.stringify(w);
-      if (facts.dataset.key !== key) {
-        facts.dataset.key = key;
-        const chip = text => { const c = document.createElement("span"); c.className = "chip"; c.textContent = text; return c; };
-        facts.replaceChildren(chip(`${w.births} born`), chip(`${w.deaths} died`),
-          ...w.causes.map(([c, n]) => chip(`${n} of ${c}`)),
-          ...Object.entries(w.social).filter(([, n]) => n).map(([k, n]) => chip(`${n} ${k === "transmission" ? "skills passed on" : k + (n === 1 ? "" : "s")}`)));
-        found.replaceChildren(...(w.discoveries.length ? w.discoveries.map(([name, t]) => chip(`${name}: ${stamp(t)}`))
-          : [Object.assign(document.createElement("span"), {className: "empty", textContent: "No discoveries yet"})]));
       }
     }
 
@@ -496,7 +693,7 @@ const DATA = /*VIEWER_DATA*/null;
     if (hist.dataset.key !== histKey) {
       hist.dataset.key = histKey;
       hist.innerHTML = past.length ? "" : '<div><time></time><p class="empty">Nothing yet.</p></div>';
-      for (let k = past.length - 1; k >= Math.max(0, past.length - 40); k--) {
+      for (let k = past.length - 1; k >= Math.max(0, past.length - 60); k--) {
         const row = document.createElement("div");
         row.innerHTML = `<time>${stamp(past[k][0])}</time><p></p>`;
         row.querySelector("p").textContent = past[k][1];
@@ -505,18 +702,57 @@ const DATA = /*VIEWER_DATA*/null;
     }
 
     const list = el("people");
-    const ids = s.agents.map(a => a.id).sort((a, b) => a - b);
-    const listKey = s.followed + ":" + ids.join(",");
+    const sorted = [...s.agents].sort((a, b) => nameOf(a.id).localeCompare(nameOf(b.id)));
+    const listKey = s.followed + ":" + sorted.map(a => a.id + (a.asleep ? "z" : a.doing)).join(",");
     if (list.dataset.key !== listKey) {
       list.dataset.key = listKey;
-      list.innerHTML = "";
-      ids.forEach(id => list.appendChild(chip(id, t)));
+      list.replaceChildren(...sorted.map(a => chip(a.id, t, a.asleep ? "sleeping" : a.doing)));
     }
   }
+
+  // ---- hovering over the map ----
+  let hoverTile = null;
+  const tip = el("tip");
+  function showTip(clientX, clientY) {
+    if (!state) return;
+    const r = canvas.getBoundingClientRect();
+    const x = Math.floor((clientX - r.left) / r.width * W), y = Math.floor((clientY - r.top) / r.height * H);
+    if (x < 0 || y < 0 || x >= W || y >= H) { hideTip(); return; }
+    hoverTile = [x, y];
+    const i = y * W + x, lines = [];
+    const here = state.agents.filter(a => Math.abs(a.x - x) <= 0 && Math.abs(a.y - y) <= 0);
+    for (const a of here) {
+      const doing = a.asleep ? (a.doing || "sleeping") : (a.doing || "wandering");
+      lines.push(`<b></b> ${doing} · energy ${a.energy}%, water ${a.water}%, health ${a.health}%`);
+    }
+    if (terrain[i] === 1) lines.push("pond");
+    else {
+      const v = state.plants[i];
+      if (v) { const k = DATA.items[v - 1]; lines.push(k.look + (k.harmful ? " (harmful to eat)" : k.edible ? " (food)" : "")); }
+      if ((state.shelters || []).includes(i)) lines.push("a shelter");
+      else if ((state.piles || []).includes(i)) lines.push("a pile of sticks");
+      if ((state.fires || []).includes(i)) lines.push("on fire");
+      if (!lines.length) lines.push("open grass");
+    }
+    tip.innerHTML = lines.map(l => `<div>${l}</div>`).join("");
+    here.forEach((a, k) => { tip.querySelectorAll("b")[k].textContent = nameOf(a.id); });
+    tip.hidden = false;
+    const box = canvas.parentElement.getBoundingClientRect();
+    let left = clientX - box.left + 14, top = clientY - box.top + 14;
+    if (left + tip.offsetWidth > box.width) left = clientX - box.left - tip.offsetWidth - 10;
+    if (top + tip.offsetHeight > box.height) top = clientY - box.top - tip.offsetHeight - 10;
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = Math.max(0, top) + "px";
+    draw();
+  }
+  function hideTip() { tip.hidden = true; hoverTile = null; if (state) draw(); }
+  canvas.addEventListener("mousemove", e => showTip(e.clientX, e.clientY));
+  canvas.addEventListener("mouseleave", hideTip);
 
   function render() {
     if (!state) return;
     draw();
+    readings();
+    itemsOnMap();
     panel();
     if (!LIVE) el("scrub").value = frame;
   }
@@ -568,18 +804,20 @@ const DATA = /*VIEWER_DATA*/null;
       if (d < dist) { best = a; dist = d; }
     }
     if (best) follow(best.id);
+    else showTip(e.clientX, e.clientY);   // on a phone, a tap shows what's there
   });
 
   function fit() {
     const px = Math.round(canvas.getBoundingClientRect().width * (window.devicePixelRatio || 1));
-    if (px > 0 && canvas.width !== px) { canvas.width = canvas.height = px; render(); }
+    if (px > 0 && canvas.width !== px) { canvas.width = canvas.height = px; }
+    render();
   }
   window.addEventListener("resize", fit);
 
   if (LIVE) {
     el("badge").textContent = "live"; el("badge").classList.add("live");
     el("scrub").hidden = true;
-    el("sub").textContent = `Running now on your computer: seed ${DATA.seed}, lives of about ${DATA.lifespanYears} years. Click anyone to follow them.`
+    el("sub").textContent = `Running now on your computer: seed ${DATA.seed}, lives of about ${DATA.lifespanYears} years. Hover the map to see what's there; click anyone to follow them.`
       + (DATA.version ? ` Version ${DATA.version}: ${DATA.change}` : "");
     poll();
     setInterval(poll, 100);
@@ -589,7 +827,7 @@ const DATA = /*VIEWER_DATA*/null;
     scrub.addEventListener("input", () => goTo(Number(scrub.value)));
     const years = (frames.length * DATA.frameEvery / TPD / 365).toFixed(1);
     const from = DATA.startTick ? `, starting in year ${Math.floor(DATA.startTick / TPD / 365) + 1}` : "";
-    el("sub").textContent = `A recorded run: seed ${DATA.seed}, ${years} years${from}, lives of about ${DATA.lifespanYears} years. Click anyone to follow their life.`;
+    el("sub").textContent = `A recorded run: seed ${DATA.seed}, ${years} years${from}, lives of about ${DATA.lifespanYears} years. Press Play, hover the map to see what's there, and click anyone to follow their life.`;
     goTo(0);
     let last = performance.now(), carry = 0;
     const loop = now => {

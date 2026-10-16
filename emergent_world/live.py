@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlparse
 
 from emergent_world.config import Config
 from emergent_world.sim import Simulation
-from emergent_world.webview import (agent_rows, climate_info, history, page, person, plant_string,
+from emergent_world.webview import (SOCIAL_KEYS, agent_rows, climate_info, history, page, person, plant_string,
                                     static_info, world_marks, world_stats)
 
 SPEEDS = (1, 6, 24, 96, 240, 720)   # hours per second
@@ -73,6 +73,7 @@ class LiveWorld:
         self.paused = False
         self.auto = True         # follow the next of kin when the followed person dies
         self.known = {a.id: a for a in sim.agents}   # everyone who ever lived, for their stories
+        self.population = []     # people alive at the start of each day, for the chart
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -88,6 +89,8 @@ class LiveWorld:
                     for _ in range(steps):
                         followed = self.sim.followed_id
                         self.sim.tick()
+                        if self.sim.tick_count % 24 == 0:
+                            self.population = (self.population + [len(self.sim.agents)])[-1460:]
                         for a in self.sim.agents:
                             self.known.setdefault(a.id, a)
                         if not self.auto and followed != self.sim.followed_id:
@@ -110,6 +113,8 @@ class LiveWorld:
                 "followed": followed.id if followed else -1,
                 "person": person(followed, sim.tick_count, sim) if followed else None,
                 "history": history(sim, 40),
+                "population": self.population,
+                "names": {a.id: a.name for a in sim.agents},
                 "world": world_stats(sim),
                 "speed": self.speed,
                 "paused": self.paused,

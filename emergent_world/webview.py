@@ -7,6 +7,8 @@ from a running simulation; replay mode rebuilds it from a recording.
 
 from pathlib import Path
 
+from emergent_world.behaviour import ACTIVITIES
+
 PAGE = Path(__file__).with_name("viewer.html")
 
 
@@ -30,6 +32,8 @@ def static_info(sim, mode: str) -> dict:
         "items": [{"look": k.look, "color": k.color, "group": k.group,
                    "harmful": k.harmful, "edible": k.edible} for k in c.items],
         "lifespanYears": round(c.average_lifespan / (24 * 365), 1),
+        "activities": list(ACTIVITIES),
+        "agentFields": AGENT_FIELDS,
     }
 
 
@@ -37,17 +41,29 @@ def plant_string(world) -> str:
     return "".join(chr(48 + int(v)) for v in world.plants.T.flatten())
 
 
-AGENT_FIELDS = 8  # id, x, y, energy %, water %, health %, rest %, asleep
+# id, x, y, energy %, water %, health %, rest %, asleep, what they're doing (index
+# into ACTIVITIES), then fear, anger, loneliness and joy (0-10)
+AGENT_FIELDS = 13
 
 
 def agent_rows(sim) -> list:
     c, rows = sim.config, []
+    index = {name: i for i, name in enumerate(ACTIVITIES)}
     for a in sim.agents:
         if a.alive:
             rows += [a.id, a.x, a.y, round(100 * a.energy / c.max_energy),
                      round(100 * a.water / c.max_water), round(100 * a.health / c.max_health),
-                     round(100 * (1 - a.fatigue)), int(a.asleep)]
+                     round(100 * (1 - a.fatigue)), int(a.asleep), index.get(a.activity, 0),
+                     round(10 * a.fear), round(10 * a.anger), round(10 * a.loneliness), round(10 * a.joy)]
     return rows
+
+
+SOCIAL_KEYS = ("gift", "comfort", "hit", "theft", "taught", "transmission", "call_answered")
+
+
+def counts_row(sim) -> list:
+    """Running totals for a replay frame: births, deaths, then each of SOCIAL_KEYS."""
+    return [sim.stats.births, len(sim.stats.deaths)] + [int(sim.counts[k]) for k in SOCIAL_KEYS]
 
 
 def climate_info(sim) -> dict:
@@ -101,7 +117,7 @@ def world_stats(sim) -> dict:
     found.sort(key=lambda f: f[1])
     return {"births": sim.stats.births, "deaths": len(sim.stats.deaths),
             "causes": [[c.replace("_", " "), n] for c, n in causes], "discoveries": found,
-            "social": {k: int(sim.counts[k]) for k in ("gift", "comfort", "theft", "hit", "transmission")}}
+            "social": {k: int(sim.counts[k]) for k in SOCIAL_KEYS}}
 
 
 def history(sim, limit: int | None = None) -> list:
