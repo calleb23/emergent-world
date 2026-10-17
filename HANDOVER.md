@@ -90,7 +90,7 @@ emergent_world/
     items.py        the 70 item kinds as data, plus strike, tap and join recipes
     physics.py      striking, rubbing, fire, cooking, joining, wetness, wind, nature, fishing
     climate.py      day/night, four 91-day seasons, weather
-tests/              21 test files, 146 tests
+tests/              20 test files, 146 tests
 docs/experiments/   results of every experiment round (read these before changing defaults)
 docs/rules/         (none yet in this repo; see README)
 ```
