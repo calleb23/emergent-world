@@ -92,7 +92,6 @@ emergent_world/
     climate.py      day/night, four 91-day seasons, weather
 tests/              20 test files, 146 tests
 docs/experiments/   results of every experiment round (read these before changing defaults)
-docs/rules/         (none yet in this repo; see README)
 ```
 
 ## 4. How a person works
